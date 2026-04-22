@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# 项目运行产物（运行时生成，不入库）
+log/
+checkpoints/
+runs/
+*.model
+
+# 大图片/可视化产物
+*.png
+*.jpg
+*.jpeg
+
+# 本地实验结果（按需选择是否入库；默认不入库）
+sh_result/
+
+# 保留示例占位
+!docs/**/*.png

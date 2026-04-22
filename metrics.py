@@ -5,6 +5,7 @@ import pandas as pd
 
 class MetronAtK(object):
     """
+    计算：命中率和归一化折损累计增益
     评估指标类：用于计算 Hit Ratio @ K 和 NDCG @ K
     用法：
         1. 创建实例：metron = MetronAtK(top_k=10)
@@ -53,6 +54,7 @@ class MetronAtK(object):
 
         参数:
             subjects: list，包含 6 个元素：
+                -
                 - test_users: list 或 Series，长度 = num_users，每个元素为 userId 的正样本用户列表
                 - test_items: list 或 Series，长度 = num_users，每个元素为 userId 的正样本 item 列表
                 - test_scores: list 或 Series，长度 = num_users，正样本的预测得分
@@ -90,6 +92,7 @@ class MetronAtK(object):
     def cal_hit_ratio(self):
         """
         计算 Hit Ratio @ K
+        计算命中率
 
         功能:
             1. 从 self._subjects 中筛选 rank <= top_k 的行（Top-K 候选）

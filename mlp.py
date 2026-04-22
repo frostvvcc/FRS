@@ -1,10 +1,30 @@
 import torch
 from engine import Engine
 from utils import use_cuda, resume_checkpoint
+import torch.nn.functional as F
 
+class LightweightAttention(torch.nn.Module):
+    def __init__(self, latent_dim):
+        super(LightweightAttention, self).__init__()
+        self.scale = latent_dim ** 0.5
+
+    def forward(self, query, keys):
+        scores = torch.bmm(query, keys.transpose(1, 2)) / self.scale
+        weights = F.softmax(scores, dim=-1)
+        attended_value = torch.bmm(weights, keys)
+        return attended_value.squeeze(1)
 
 class MLP(torch.nn.Module):
-    """多层感知机（MLP）模型，用于预测给定用户-物品对的评分概率（隐式反馈）"""
+    """多层感知机（MLP）模型，用于预测给定用户-物品对的评分概率（隐式反馈）
+        当这个用户，遇到这部具体的电影时，他有多大的概率会喜欢它？
+        不管系统喂给它什么电影，它最后都会吐出一个 0 到 1 之间的数字（比如 0.89 代表极其推荐，0.12 代表千万别推）。
+        这就是前面提到的 Sigmoid 激活函数的功劳。
+第一步（拿画像）： 它先去字典里查出“用户的性格向量”（User Embedding）和“电影的属性向量”（Item Embedding）。
+
+第二步（硬凑对）： 它把这两个向量简单粗暴地拼在一起（拼接操作 torch.cat）。缺乏序列概念，用户是静态的画像。
+
+第三步（看反应）： 拼在一起后，它把这串数据扔进多层感知机（那几层 fc_layers 神经网络）里反复揉搓、过滤。这就像是在测试：这个人的性格和这部电影的属性之间，能不能产生强烈的“化学反应”？如果有，分数就高。
+    """
 
     def __init__(self, config):
         """
@@ -38,7 +58,8 @@ class MLP(torch.nn.Module):
         self.embedding_user = torch.nn.Embedding(num_embeddings=1, embedding_dim=self.latent_dim)
         # 物品 embedding：大小为 (num_items, latent_dim)
         self.embedding_item = torch.nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.latent_dim)
-
+        # 🌟 必须加这一句！把注意力雷达装上去！
+        self.attention_layer = LightweightAttention(self.latent_dim)
         # MLP 隐藏层
         self.fc_layers = torch.nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(config['layers'][:-1], config['layers'][1:])):
@@ -49,7 +70,7 @@ class MLP(torch.nn.Module):
         # Sigmoid 激活，用于将输出映射到 [0,1]
         self.logistic = torch.nn.Sigmoid()
 
-    def forward(self, item_indices):
+    def forward(self, item_indices, history_indices):
         """
         前向推理
 
@@ -72,12 +93,25 @@ class MLP(torch.nn.Module):
         batch_size = len(item_indices)
         user_indices = torch.LongTensor([0 for _ in range(batch_size)]).to(device)
 
-        # 2. 获取 user_embedding 和 item_embedding
+        # 2. 获取 user_embedding （长期兴趣）和 item_embedding（候选物品）
         user_embedding = self.embedding_user(user_indices)    # shape=[batch_size, latent_dim]
         item_embedding = self.embedding_item(item_indices)    # shape=[batch_size, latent_dim]
+        # a. 从字典获取历史序列的特征 (Keys/Values)
+        history_embedding = self.embedding_item(history_indices)  # shape=[batch_size, seq_len, latent_dim]
+
+        # b. 给候选物品加一个维度，变成 Query，以满足注意力矩阵乘法要求
+        query = item_embedding.unsqueeze(1)  # shape=[batch_size, 1, latent_dim]
+
+        # c. 送入注意力层，算出带有权重的短期兴趣！
+        # 注意：前提是你在 __init__ 里已经实例化了 self.attention_layer
+        short_term_interest = self.attention_layer(query, history_embedding)  # shape=[batch_size, latent_dim]
 
         # 3. 拼接 user_embedding 和 item_embedding
-        vector = torch.cat([user_embedding, item_embedding], dim=-1)  # shape=[batch_size, 2*latent_dim]
+        # 现在我们要拼 3 个：长期兴趣 + 短期兴趣 + 候选物品
+        if self.config.get('use_attention', True):
+            vector = torch.cat([user_embedding, short_term_interest, item_embedding], dim=-1)
+        else:
+            vector = torch.cat([user_embedding, item_embedding], dim=-1)  # shape=[batch_size, 2*latent_dim]
 
         # 4. 依次通过每一层 MLP 隐藏层（ReLU 激活）
         for idx, _ in enumerate(self.fc_layers):
@@ -87,6 +121,8 @@ class MLP(torch.nn.Module):
         # 5. 输出层映射
         logits = self.affine_output(vector)   # shape=[batch_size, 1]
         # 6. Sigmoid 激活，映射到 [0,1]
+        # 模型把（用户特征 + 物品特征）算完之后，通过Sigmoid函数，吐出了一个
+        # 0到1之间的小数（比如0.85、0.12）。
         rating = self.logistic(logits)       # shape=[batch_size, 1]
 
         return rating
@@ -118,7 +154,6 @@ class MLPEngine(Engine):
         self.model = MLP(config)
         # 2. 若使用 CUDA，则调用 utils.use_cuda 将模型移动到 GPU
         if config['use_cuda'] is True:
-            use_cuda(True, config['device_id'])
             self.model.cuda()
         # 3. 调用父类构造函数，初始化 Engine 相关属性
         super(MLPEngine, self).__init__(config)
