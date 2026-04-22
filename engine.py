@@ -372,19 +372,21 @@ class Engine(object):
         negative_scores = None
         all_loss = {}
 
+        # 性能优化：复用 self.model，避免每个用户都 deepcopy 整个模型。
+        # 1) 先缓存当前模型的原始参数值，评估结束后恢复；
+        # 2) 每个用户只构造需要覆盖的参数 dict，调用 load_state_dict 原地更新参数。
+        original_state = {k: v.detach().clone() for k, v in self.model.state_dict().items()}
+        was_training = self.model.training
+        self.model.eval()
+
         # 遍历所有用户（按 user ID 顺序）
         for user in range(self.config['num_users']):
-            # a. 深拷贝模型
-            user_model = copy.deepcopy(self.model)
-            user_param_dict = copy.deepcopy(self.model.state_dict())
-            # 如果该用户有本地更新，则覆盖对应参数
+            # a. 构造该用户的 state_dict：从原始参数出发，若有本地更新则覆盖
+            user_param_dict = {k: v for k, v in original_state.items()}
             if user in self.client_model_params.keys():
                 for key in self.client_model_params[user].keys():
-                    user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data)
-            # user_param_dict['embedding_item.weight'] = copy.deepcopy(
-            #     self.server_model_param['embedding_item.weight']['global'].data)
-            user_model.load_state_dict(user_param_dict)
-            user_model.eval()
+                    user_param_dict[key] = self.client_model_params[user][key].data
+            self.model.load_state_dict(user_param_dict)
 
             with torch.no_grad():
                 # b. 准备该用户的正样本（1 条）和负样本（99 条）
@@ -397,8 +399,8 @@ class Engine(object):
 
                 # c. 前向预测
                 # 🌟 必须加上第二个参数！
-                test_score = user_model(test_item, test_history)
-                negative_score = user_model(negative_item, negative_history)
+                test_score = self.model(test_item, test_history)
+                negative_score = self.model(negative_item, negative_history)
 
                 # 汇总所有用户得分
                 if user == 0:
@@ -412,6 +414,11 @@ class Engine(object):
                 ratings_pred = torch.cat((test_score, negative_score))
                 loss = self.crit(ratings_pred.view(-1), ratings)
                 all_loss[user] = loss.item()
+
+        # 评估结束后恢复 self.model 的原始参数与训练模式
+        self.model.load_state_dict(original_state)
+        if was_training:
+            self.model.train()
 
         # 如果使用 CUDA，则将张量移回 CPU
         if self.config['use_cuda'] is True:

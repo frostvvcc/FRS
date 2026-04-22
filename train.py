@@ -4,8 +4,6 @@ import pandas as pd
 import numpy as np
 import datetime
 import os
-# 设置可见 GPU 设备编号
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import argparse
 from mlp import MLPEngine
 from data import SampleGenerator
@@ -109,6 +107,8 @@ engine = MLPEngine(config)
 # -----------------------------
 path = 'log/'
 os.makedirs(path, exist_ok=True)  # 确保 log 目录存在
+os.makedirs('sh_result', exist_ok=True)  # 结果摘要目录
+os.makedirs('checkpoints', exist_ok=True)  # 模型检查点目录
 current_time = datetime.datetime.now().strftime('%Y-%m-%d %H_%M_%S')
 logname = os.path.join(path, current_time + '.txt')
 initLogging(logname)  # 使用 utils.py 中的 initLogging
