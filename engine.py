@@ -148,8 +148,24 @@ class Engine(object):
 
     def aggregate_clients_params(self, round_user_params):
         """
-        服务端聚合当前轮参与用户上传的参数（双图一致性版本）
+        服务端聚合当前轮参与用户上传的参数（双图一致性版本）。
+        若 config['no_graph']=True 则退化为 FedAvg 基线：直接对所有用户的
+        item embedding 求平均并广播给全体用户，作为 global embedding。
         """
+        # no_graph 基线：直接平均，跳过图构建与消息传递
+        if self.config.get('no_graph', False):
+            avg = None
+            n = 0
+            for uid, params in round_user_params.items():
+                t = params['embedding_item.weight']
+                avg = t.clone() if avg is None else avg + t
+                n += 1
+            avg = avg / max(n, 1)
+            item_embedding_dict = {uid: avg.clone() for uid in round_user_params.keys()}
+            item_embedding_dict['global'] = avg
+            self.server_model_param['embedding_item.weight'] = item_embedding_dict
+            return
+
         # 1. 构建第一张图：表面兴趣图 (Item Embedding)
         item_graph = construct_user_relation_graph_via_item(
             round_user_params,
@@ -255,23 +271,48 @@ class Engine(object):
                 )
                 model_client.load_state_dict(user_param_dict)
 
-            # c. 定义三个优化器
-            optimizer = torch.optim.SGD(
+            # c. 定义三个优化器（支持 sgd/adam/adamw + 学习率直接覆写）
+            optim_name = self.config.get('optimizer', 'sgd').lower()
+
+            lr_mlp = self.config['lr']
+            # 用户 embedding 学习率：优先使用显式覆写 lr_u；否则沿用老公式
+            lr_u_override = self.config.get('lr_u')
+            if lr_u_override is not None:
+                lr_u = float(lr_u_override)
+            else:
+                lr_u = self.config['lr'] / self.config['clients_sample_ratio'] \
+                       * self.config['lr_eta'] - self.config['lr']
+            # 物品 embedding 学习率：优先使用显式覆写 lr_i；否则沿用老公式
+            lr_i_override = self.config.get('lr_i')
+            if lr_i_override is not None:
+                lr_i = float(lr_i_override)
+            else:
+                lr_i = self.config['lr'] * self.config['num_items'] \
+                       * self.config['lr_eta'] - self.config['lr']
+
+            def _make_opt(params, lr):
+                if optim_name == 'adam':
+                    return torch.optim.Adam(params, lr=lr)
+                if optim_name == 'adamw':
+                    return torch.optim.AdamW(params, lr=lr)
+                return torch.optim.SGD(params, lr=lr)
+
+            optimizer = _make_opt(
                 [
                     {"params": model_client.fc_layers.parameters()},
                     {"params": model_client.affine_output.parameters()}
                 ],
-                lr=self.config['lr']
+                lr=lr_mlp
             )  # MLP 优化器
 
-            optimizer_u = torch.optim.SGD(
+            optimizer_u = _make_opt(
                 model_client.embedding_user.parameters(),
-                lr=self.config['lr'] / self.config['clients_sample_ratio'] * self.config['lr_eta'] - self.config['lr']
+                lr=lr_u
             )  # 用户 embedding 优化器
 
-            optimizer_i = torch.optim.SGD(
+            optimizer_i = _make_opt(
                 model_client.embedding_item.parameters(),
-                lr=self.config['lr'] * self.config['num_items'] * self.config['lr_eta'] - self.config['lr']
+                lr=lr_i
             )  # 物品 embedding 优化器
 
             optimizers = [optimizer, optimizer_u, optimizer_i]
@@ -298,24 +339,24 @@ class Engine(object):
             for key in self.client_model_params[user].keys():
                 self.client_model_params[user][key] = self.client_model_params[user][key].data.cpu()
 
-                # f. 将该用户上传的 item embedding 加入 round_participant_params，并添加差分隐私噪声
-                round_participant_params[user] = {}
-                round_participant_params[user]['embedding_item.weight'] = copy.deepcopy(
-                    self.client_model_params[user]['embedding_item.weight']
-                )
+            # f. 将该用户上传的 item embedding 加入 round_participant_params，并添加差分隐私噪声
+            round_participant_params[user] = {}
+            round_participant_params[user]['embedding_item.weight'] = copy.deepcopy(
+                self.client_model_params[user]['embedding_item.weight']
+            )
 
-                # 🌟 修正：严格按照论文，上传“长期兴趣特征向量”用于建第二张图！
-                round_participant_params[user]['interest_params'] = copy.deepcopy(
-                    self.client_model_params[user]['embedding_user.weight'].data.cpu()
-                )
+            # 🌟 修正：严格按照论文，上传"长期兴趣特征向量"用于建第二张图！
+            round_participant_params[user]['interest_params'] = copy.deepcopy(
+                self.client_model_params[user]['embedding_user.weight'].data.cpu()
+            )
 
-                # 确保 dp_value > 0
-                dp_value = max(self.config['dp'], 1e-6)
-                # 添加拉普拉斯噪声 (仅对 item embedding 添加，大脑参数用于算相似度暂不加噪)
-                noise = Laplace(1e-6, dp_value).expand(
-                    round_participant_params[user]['embedding_item.weight'].shape
-                ).sample()
-                round_participant_params[user]['embedding_item.weight'] += noise
+            # 确保 dp_value > 0
+            dp_value = max(self.config['dp'], 1e-6)
+            # 添加拉普拉斯噪声 (仅对 item embedding 添加，大脑参数用于算相似度暂不加噪)
+            noise = Laplace(1e-6, dp_value).expand(
+                round_participant_params[user]['embedding_item.weight'].shape
+            ).sample()
+            round_participant_params[user]['embedding_item.weight'] += noise
 
         # 4. 服务端聚合本轮所有用户上传的 item embedding
         self.aggregate_clients_params(round_participant_params)

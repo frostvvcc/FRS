@@ -3,8 +3,11 @@
 import pandas as pd
 import numpy as np
 import datetime
+import json
 import os
+import random
 import argparse
+import torch
 from mlp import MLPEngine
 from data import SampleGenerator
 from utils import *
@@ -68,6 +71,20 @@ parser.add_argument('--alpha', type=float, default=0.5,
                     help="双图融合权重，0=只用interest图，1=只用item图，0.5=两图各半")
 parser.add_argument('--no_attention', action='store_true', default=False,
                     help="加上这个参数就关掉注意力机制")
+parser.add_argument('--no_graph', action='store_true', default=False,
+                    help="FedAvg 基线：聚合阶段直接对 item embedding 求平均，跳过双图")
+parser.add_argument('--lr_u', type=float, default=None,
+                    help="直接指定用户 embedding 学习率（覆盖 lr_eta 公式）")
+parser.add_argument('--lr_i', type=float, default=None,
+                    help="直接指定物品 embedding 学习率（覆盖 lr_eta 公式）")
+parser.add_argument('--seed', type=int, default=42,
+                    help="随机种子（python/numpy/torch）")
+parser.add_argument('--early_stop_patience', type=int, default=0,
+                    help=">0 时启用早停：验证集 HR 连续 N 轮不提升则停止")
+parser.add_argument('--metrics_json', type=str, default=None,
+                    help="结束时把全部指标写入该 JSON 路径")
+parser.add_argument('--result_tag', type=str, default=None,
+                    help="实验标签（仅用于 JSON/CSV 可读性）")
 parser.set_defaults(use_attention=True)
 args = parser.parse_args()
 
@@ -75,6 +92,12 @@ args = parser.parse_args()
 config = vars(args)
 config['use_cuda'] = False  # 强行把全局开关焊死在 False 上！
 config['use_attention'] = not config['no_attention']
+
+# 设置随机种子（保证同一 config 可复现）
+_seed = config.get('seed', 42)
+random.seed(_seed)
+np.random.seed(_seed)
+torch.manual_seed(_seed)
 
 # 将层列表字符串转为 int 列表
 if isinstance(config['layers'], str) and ',' in config['layers']:
@@ -225,6 +248,15 @@ for rnd in range(config['num_round']):
     if val_hit_ratio >= best_val_hr:
         best_val_hr = val_hit_ratio
         final_test_round = rnd
+        rounds_without_improve = 0
+    else:
+        rounds_without_improve = locals().get('rounds_without_improve', 0) + 1
+
+    # 早停：验证集 HR 连续 patience 轮未刷新最优
+    patience = config.get('early_stop_patience', 0)
+    if patience and patience > 0 and rounds_without_improve >= patience:
+        logging.info(f"Early stopping at round {rnd} (patience={patience}, best_round={final_test_round})")
+        break
 
 # -----------------------------
 # 记录最终结果到文件
@@ -259,3 +291,27 @@ logging.info(
     f"Best test HR: {hit_ratio_list[final_test_round]:.4f}, "
     f"NDCG: {ndcg_list[final_test_round]:.4f} at round {final_test_round}"
 )
+
+# ---- 把关键指标写到 JSON（若指定 --metrics_json） ----
+if config.get('metrics_json'):
+    metrics = {
+        'tag': config.get('result_tag') or config.get('alias'),
+        'alias': config.get('alias'),
+        'dataset': config.get('dataset'),
+        'num_round_requested': config.get('num_round'),
+        'num_round_actual': len(hit_ratio_list),
+        'best_round': final_test_round,
+        'best_test_hr': float(hit_ratio_list[final_test_round]),
+        'best_test_ndcg': float(ndcg_list[final_test_round]),
+        'best_val_hr': float(best_val_hr),
+        'hr_list': [float(x) for x in hit_ratio_list],
+        'ndcg_list': [float(x) for x in ndcg_list],
+        'val_hr_list': [float(x) for x in val_hr_list],
+        'val_ndcg_list': [float(x) for x in val_ndcg_list],
+        'config': {k: (v if isinstance(v, (int, float, str, bool, list)) or v is None else str(v))
+                   for k, v in config.items()},
+    }
+    os.makedirs(os.path.dirname(config['metrics_json']) or '.', exist_ok=True)
+    with open(config['metrics_json'], 'w') as f:
+        json.dump(metrics, f, ensure_ascii=False, indent=2)
+    logging.info(f"Metrics JSON written to {config['metrics_json']}")

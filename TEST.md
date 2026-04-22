@@ -21,7 +21,8 @@ python tests/test_smoke.py
 |------|----------|
 | `tests/test_graph.py` | `construct_user_relation_graph_via_item` / `select_topk_neighboehood` / `MP_on_graph` |
 | `tests/test_metrics.py` | `MetronAtK` 的 HR@K / NDCG@K 计算 |
-| `tests/test_smoke.py` | `train.py` 在 100k 数据集 + 1 轮的端到端运行 |
+| `tests/test_smoke.py` | `MLP.forward` 输出形状 + 注意力路径一致性 |
+| `tests/test_engine_features.py` | `--no_graph` 退化为均值聚合；`--optimizer adam` / `--lr_u` / `--lr_i` 覆写生效 |
 
 ## 开发约定
 

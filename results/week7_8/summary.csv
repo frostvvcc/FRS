@@ -1,0 +1,24 @@
+tag,group,description,best_test_hr,best_test_ndcg,best_round,num_round_actual
+A0_no_graph,A,FedAvg 基线：跳过图构建，直接平均 item embedding,0.4316,0.2418,19,20
+A1_alpha_1.0,A,仅 item graph (alpha=1.0),0.4168,0.2236,17,20
+A2_alpha_0.7,A,双图融合 alpha=0.7（偏 item）,0.4316,0.2322,19,20
+A3_alpha_0.5,A,双图融合 alpha=0.5（均衡，默认）,0.4189,0.2181,17,20
+A4_alpha_0.3,A,双图融合 alpha=0.3（偏 interest）,0.4284,0.2268,19,20
+A5_alpha_0.0,A,仅 interest graph (alpha=0.0),0.4295,0.2249,19,20
+B1_topk_5,B,Top-K=5,0.1336,0.0627,12,18
+B2_topk_10,B,Top-K=10,0.1273,0.0584,7,13
+B3_topk_20,B,Top-K=20,0.1485,0.0679,9,15
+B4_threshold_1.0,B,阈值方式 threshold=1.0（默认）,0.4189,0.2181,17,20
+B5_threshold_1.2,B,阈值方式 threshold=1.2（更严）,0.3860,0.2035,19,20
+C1_sgd_default,C,SGD baseline: lr=0.1 lr_eta=80（原始）,0.4189,0.2181,17,20
+C2_sgd_eta10,C,SGD lr=0.1 lr_eta=10（降低 eta）,0.4327,0.2322,19,20
+C3_sgd_override,C,SGD 直接指定 lr_u=0.01 lr_i=0.1,0.0997,0.0444,8,14
+C4_adam_001,C,Adam lr=0.001 lr_u=0.01 lr_i=0.01,0.2015,0.1065,19,20
+C5_adam_all_001,C,Adam 统一 lr=0.001,0.1029,0.0464,12,18
+D1_no_attention,D,"关闭注意力（layers=[64,32,16,8]）",0.4242,0.2308,18,20
+E1_mp_1,E,MP 层数=1（默认）,0.4189,0.2181,17,20
+E2_mp_2,E,MP 层数=2,0.4380,0.2355,18,20
+E3_mp_3,E,MP 层数=3,0.4327,0.2285,19,20
+F1_dp_0,F,DP 噪声=0（默认）,0.4189,0.2181,17,20
+F2_dp_001,F,DP 噪声=0.01,0.4369,0.2437,19,20
+F3_dp_005,F,DP 噪声=0.05,0.3659,0.1956,18,20

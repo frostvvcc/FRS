@@ -1,0 +1,53 @@
+Planned 23 experiments in results/week7_8
+Dataset=100k  num_round=20  seed=42
+  [RUN]  A0_no_graph  args=['--no_graph']
+  [DONE] A0_no_graph  (284.6s)
+  [RUN]  A1_alpha_1.0  args=['--alpha', '1.0']
+  [DONE] A1_alpha_1.0  (287.5s)
+  [RUN]  A2_alpha_0.7  args=['--alpha', '0.7']
+  [DONE] A2_alpha_0.7  (287.4s)
+  [RUN]  A3_alpha_0.5  args=['--alpha', '0.5']
+  [DONE] A3_alpha_0.5  (298.8s)
+  [RUN]  A4_alpha_0.3  args=['--alpha', '0.3']
+  [DONE] A4_alpha_0.3  (287.3s)
+  [RUN]  A5_alpha_0.0  args=['--alpha', '0.0']
+  [DONE] A5_alpha_0.0  (290.9s)
+  [RUN]  B1_topk_5  args=['--neighborhood_size', '5']
+  [DONE] B1_topk_5  (255.5s)
+  [RUN]  B2_topk_10  args=['--neighborhood_size', '10']
+  [DONE] B2_topk_10  (187.1s)
+  [RUN]  B3_topk_20  args=['--neighborhood_size', '20']
+  [DONE] B3_topk_20  (217.3s)
+  [RUN]  B4_threshold_1.0  args=['--neighborhood_size', '0', '--neighborhood_threshold', '1.0']
+  [DONE] B4_threshold_1.0  (288.4s)
+  [RUN]  B5_threshold_1.2  args=['--neighborhood_size', '0', '--neighborhood_threshold', '1.2']
+  [DONE] B5_threshold_1.2  (285.8s)
+  [RUN]  C1_sgd_default  args=[]
+  [DONE] C1_sgd_default  (292.6s)
+  [RUN]  C2_sgd_eta10  args=['--lr_eta', '10']
+  [DONE] C2_sgd_eta10  (290.3s)
+  [RUN]  C3_sgd_override  args=['--lr_u', '0.01', '--lr_i', '0.1']
+  [DONE] C3_sgd_override  (205.7s)
+  [RUN]  C4_adam_001  args=['--optimizer', 'adam', '--lr', '0.001', '--lr_u', '0.01', '--lr_i', '0.01']
+  [DONE] C4_adam_001  (335.9s)
+  [RUN]  C5_adam_all_001  args=['--optimizer', 'adam', '--lr', '0.001', '--lr_u', '0.001', '--lr_i', '0.001']
+  [DONE] C5_adam_all_001  (297.0s)
+  [RUN]  D1_no_attention  args=['--no_attention', '--layers', '64,32,16,8']
+  [DONE] D1_no_attention  (258.5s)
+  [RUN]  E1_mp_1  args=['--mp_layers', '1']
+  [DONE] E1_mp_1  (287.8s)
+  [RUN]  E2_mp_2  args=['--mp_layers', '2']
+  [DONE] E2_mp_2  (288.0s)
+  [RUN]  E3_mp_3  args=['--mp_layers', '3']
+  [DONE] E3_mp_3  (292.1s)
+  [RUN]  F1_dp_0  args=['--dp', '0.0']
+  [DONE] F1_dp_0  (292.7s)
+  [RUN]  F2_dp_001  args=['--dp', '0.01']
+  [DONE] F2_dp_001  (292.8s)
+  [RUN]  F3_dp_005  args=['--dp', '0.05']
+  [DONE] F3_dp_005  (294.2s)
+
+All runs finished in 106.6 min.
+  Wrote results/week7_8/summary.csv
+  Wrote results/week7_8/summary.md
+  [WARN] matplotlib not available: No module named 'matplotlib'; skip plot
