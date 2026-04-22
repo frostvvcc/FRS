@@ -22,7 +22,6 @@ class Engine(object):
         初始化 Engine
 
         参数:
-            config: dict，包含模型和训练配置，例如：
                 - 'batch_size': 每个用户本地训练时的批次大小
                 - 'use_cuda': 是否使用 CUDA（True/False）
                 - 'lr': 基础学习率
@@ -75,13 +74,14 @@ class Engine(object):
         dataset = UserItemRatingDataset(
             user_tensor=torch.LongTensor(user_train_data[0]),
             item_tensor=torch.LongTensor(user_train_data[1]),
-            target_tensor=torch.FloatTensor(user_train_data[2])
+            target_tensor=torch.FloatTensor(user_train_data[2]),
+        history_tensor = torch.LongTensor(user_train_data[3])  # 🌟 新增：接住历史序列张量
         )
         return DataLoader(dataset, batch_size=self.config['batch_size'], shuffle=True)
 
     def fed_train_single_batch(self, model_client, batch_data, optimizers, user):
         """
-        客户端本地训练单个批次
+        客户端本地训练单个批次（单个用户手机）
 
         参数:
             model_client: torch.nn.Module，客户端本地模型
@@ -106,10 +106,14 @@ class Engine(object):
              - model_client: 更新后带梯度更新的本地模型
              - loss.item(): 本批次的标量损失值（float）
         """
-        users, items, ratings = batch_data[0], batch_data[1], batch_data[2]
+        users, items, ratings, history_items= batch_data[0], batch_data[1], batch_data[2], batch_data[3]
         ratings = ratings.float()
         # 从服务端参数中获取该用户对应的 item embedding，用于正则化
-        reg_item_embedding = copy.deepcopy(self.server_model_param['embedding_item.weight'][user].data)
+        # 如果该用户上一轮没参加，就直接拿全局的 global 参数给他用
+        if user in self.server_model_param['embedding_item.weight']:
+            reg_item_embedding = copy.deepcopy(self.server_model_param['embedding_item.weight'][user].data)
+        else:
+            reg_item_embedding = copy.deepcopy(self.server_model_param['embedding_item.weight']['global'].data)
 
         optimizer, optimizer_u, optimizer_i = optimizers
 
@@ -124,8 +128,8 @@ class Engine(object):
         optimizer_u.zero_grad()
         optimizer_i.zero_grad()
 
-        # 前向计算：仅传入物品索引，让模型内部补上用户 embedding
-        ratings_pred = model_client(items)
+        # 前向计算：把候选物品 (items) 和历史序列 (history_items) 一起传给模型
+        ratings_pred = model_client(items, history_items)
         # 计算 BCE Loss
         loss = self.crit(ratings_pred.view(-1), ratings)
         # 计算正则化项（通常是 L2 范数）
@@ -144,32 +148,31 @@ class Engine(object):
 
     def aggregate_clients_params(self, round_user_params):
         """
-        服务端聚合当前轮参与用户上传的 embedding_item 参数
-
-        参数:
-            round_user_params: dict, key 为 userID，value 为 dict {'embedding_item.weight': Tensor}
-                                包含所有参与用户上传的噪声添加后的 item embedding
-        功能:
-            1. 构建用户关系图：调用 construct_user_relation_graph_via_item(round_user_params, num_items, latent_dim, similarity_metric)
-            2. 基于用户关系图，选取每个用户的 Top-K 邻居：select_topk_neighboehood(...)
-            3. 使用图消息传递（Message Passing）更新 item embedding：MP_on_graph(...)
-            4. 将更新后的 item embedding 存入 self.server_model_param['embedding_item.weight']
-        输出:
-            无，直接更新 self.server_model_param['embedding_item.weight']
+        服务端聚合当前轮参与用户上传的参数（双图一致性版本）
         """
-        # 1. 构建用户关系图
-        user_relation_graph = construct_user_relation_graph_via_item(
+        # 1. 构建第一张图：表面兴趣图 (Item Embedding)
+        item_graph = construct_user_relation_graph_via_item(
             round_user_params,
             self.config['num_items'],
             self.config['latent_dim'],
             self.config['similarity_metric']
         )
-        # 2. 选取 Top-K 邻居
-        topk_user_relation_graph = select_topk_neighboehood(
-            user_relation_graph,
-            self.config['neighborhood_size'],
-            self.config['neighborhood_threshold']
+
+        # 🌟 修改 1.5. 构建第二张图：兴趣语义图 (严格对齐论文)
+        interest_graph = construct_user_relation_graph_via_interest(
+            round_user_params,
+            self.config['similarity_metric']
         )
+
+        # 2. 选取 Top-K 邻居（双图一致性筛选！）
+        topk_user_relation_graph = select_topk_neighboehood(
+            item_graph=item_graph,  # 传第一张图 (行为协同图)
+            mlp_graph=interest_graph,  # 传新的图！(兴趣语义图)
+            neighborhood_size=self.config['neighborhood_size'],
+            neighborhood_threshold=self.config['neighborhood_threshold'],
+            alpha=self.config.get('alpha', 0.5)  # 权重各占一半，完美一致
+        )
+
         # 3. 图消息传递，更新全局 item embedding
         updated_item_embedding = MP_on_graph(
             round_user_params,
@@ -178,6 +181,7 @@ class Engine(object):
             topk_user_relation_graph,
             self.config['mp_layers']
         )
+
         # 4. 存储更新后的 item embedding
         self.server_model_param['embedding_item.weight'] = copy.deepcopy(updated_item_embedding)
 
@@ -244,11 +248,11 @@ class Engine(object):
                 # 若该用户存在本地更新，则覆盖对应参数
                 if user in self.client_model_params.keys():
                     for key in self.client_model_params[user].keys():
-                        user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data).cuda()
+                        user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data)
                 # 替换 embedding_item.weight 为全局聚合后的 embedding
                 user_param_dict['embedding_item.weight'] = copy.deepcopy(
                     self.server_model_param['embedding_item.weight']['global'].data
-                ).cuda()
+                )
                 model_client.load_state_dict(user_param_dict)
 
             # c. 定义三个优化器
@@ -276,7 +280,8 @@ class Engine(object):
             user_train_data = [
                 all_train_data[0][user],  # users 列表
                 all_train_data[1][user],  # items 列表
-                all_train_data[2][user]  # ratings 列表
+                all_train_data[2][user],  # ratings 列表
+                all_train_data[3][user]  # 🌟 必须加上这行！把历史序列装上车！
             ]
             user_dataloader = self.instance_user_train_loader(user_train_data)
 
@@ -293,19 +298,24 @@ class Engine(object):
             for key in self.client_model_params[user].keys():
                 self.client_model_params[user][key] = self.client_model_params[user][key].data.cpu()
 
-            # f. 将该用户上传的 item embedding 加入 round_participant_params，并添加差分隐私噪声
-            round_participant_params[user] = {}
-            round_participant_params[user]['embedding_item.weight'] = copy.deepcopy(
-                self.client_model_params[user]['embedding_item.weight']
-            )
+                # f. 将该用户上传的 item embedding 加入 round_participant_params，并添加差分隐私噪声
+                round_participant_params[user] = {}
+                round_participant_params[user]['embedding_item.weight'] = copy.deepcopy(
+                    self.client_model_params[user]['embedding_item.weight']
+                )
 
-            # 确保 dp_value > 0
-            dp_value = max(self.config['dp'], 1e-6)
-            # 添加拉普拉斯噪声
-            noise = Laplace(1e-6, dp_value).expand(
-                round_participant_params[user]['embedding_item.weight'].shape
-            ).sample()
-            round_participant_params[user]['embedding_item.weight'] += noise
+                # 🌟 修正：严格按照论文，上传“长期兴趣特征向量”用于建第二张图！
+                round_participant_params[user]['interest_params'] = copy.deepcopy(
+                    self.client_model_params[user]['embedding_user.weight'].data.cpu()
+                )
+
+                # 确保 dp_value > 0
+                dp_value = max(self.config['dp'], 1e-6)
+                # 添加拉普拉斯噪声 (仅对 item embedding 添加，大脑参数用于算相似度暂不加噪)
+                noise = Laplace(1e-6, dp_value).expand(
+                    round_participant_params[user]['embedding_item.weight'].shape
+                ).sample()
+                round_participant_params[user]['embedding_item.weight'] += noise
 
         # 4. 服务端聚合本轮所有用户上传的 item embedding
         self.aggregate_clients_params(round_participant_params)
@@ -343,6 +353,8 @@ class Engine(object):
         """
         test_users, test_items = evaluate_data[0], evaluate_data[1]
         negative_users, negative_items = evaluate_data[2], evaluate_data[3]
+        # 🌟 新增：接住测试集的历史序列
+        test_histories, negative_histories = evaluate_data[4], evaluate_data[5]
 
         # 构造一个长度 100 的标签 tensor: [1, 0, 0, ..., 0]，用于计算本地 loss
         temp = [0] * 100
@@ -368,9 +380,9 @@ class Engine(object):
             # 如果该用户有本地更新，则覆盖对应参数
             if user in self.client_model_params.keys():
                 for key in self.client_model_params[user].keys():
-                    user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data).cuda()
+                    user_param_dict[key] = copy.deepcopy(self.client_model_params[user][key].data)
             # user_param_dict['embedding_item.weight'] = copy.deepcopy(
-            #     self.server_model_param['embedding_item.weight']['global'].data).cuda()
+            #     self.server_model_param['embedding_item.weight']['global'].data)
             user_model.load_state_dict(user_param_dict)
             user_model.eval()
 
@@ -378,12 +390,15 @@ class Engine(object):
                 # b. 准备该用户的正样本（1 条）和负样本（99 条）
                 test_user = test_users[user: user + 1]  # LongTensor, shape=[1]
                 test_item = test_items[user: user + 1]  # LongTensor, shape=[1]
+                test_history = test_histories[user: user + 1]  # 🌟 补上这行！取出正样本的序列
                 negative_user = negative_users[user * 99: (user + 1) * 99]  # LongTensor, shape=[99]
                 negative_item = negative_items[user * 99: (user + 1) * 99]  # LongTensor, shape=[99]
+                negative_history = negative_histories[user * 99: (user + 1) * 99]  # 🌟 补上这行！取出负样本的序列
 
                 # c. 前向预测
-                test_score = user_model(test_item)  # Tensor, shape=[1, 1]
-                negative_score = user_model(negative_item)  # Tensor, shape=[99, 1]
+                # 🌟 必须加上第二个参数！
+                test_score = user_model(test_item, test_history)
+                negative_score = user_model(negative_item, negative_history)
 
                 # 汇总所有用户得分
                 if user == 0:

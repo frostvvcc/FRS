@@ -124,9 +124,9 @@ def construct_user_relation_graph_via_item(round_user_params, item_num, latent_d
     num_users = len(round_user_params)
     # 初始化存储所有用户拉平后的 item embedding
     item_embedding = np.zeros((num_users, item_num * latent_dim), dtype='float32')
-    for user in round_user_params.keys():
-        # 将用户的 item embedding 拉平为一维向量
-        item_embedding[user] = round_user_params[user]['embedding_item.weight'].numpy().flatten()
+    for idx, user in enumerate(round_user_params.keys()):
+        # 将用户的 item embedding 拉平为一维向量，用 idx 作为数组行号
+        item_embedding[idx] = round_user_params[user]['embedding_item.weight'].numpy().flatten()
     # 使用 sklearn 的 pairwise_distances 计算用户间距离或相似度
     adj = pairwise_distances(item_embedding, metric=similarity_metric)
     if similarity_metric == 'cosine':
@@ -134,26 +134,44 @@ def construct_user_relation_graph_via_item(round_user_params, item_num, latent_d
     else:
         # 对于其他度量方式，返回负值以便后续取高相似度
         return -adj
-
-def select_topk_neighboehood(user_relation_graph, neighborhood_size, neighborhood_threshold):
+def construct_user_relation_graph_via_interest(round_user_params, similarity_metric):
     """
-    从用户关系图中筛选 Top-K 邻居或基于阈值选择邻居
+    🌟 严格对齐论文：构建兴趣语义图（基于客户端上传的兴趣特征向量）
+    """
+    num_users = len(round_user_params)
+    interest_embeddings = []
 
+    for idx, user in enumerate(round_user_params.keys()):
+        # 直接拉平提取到的兴趣向量
+        user_interest_vector = round_user_params[user]['interest_params'].numpy().flatten()
+        interest_embeddings.append(user_interest_vector)
+
+    interest_embeddings = np.array(interest_embeddings, dtype='float32')
+
+    # 使用 sklearn 计算用户兴趣特征的相似度
+    adj = pairwise_distances(interest_embeddings, metric=similarity_metric)
+    if similarity_metric == 'cosine':
+        return adj
+    else:
+        return -adj
+
+
+
+def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborhood_threshold, alpha=1.0):
+    """
+    🌟 第 5 周核心创新：基于双图一致性的邻居筛选
     参数:
-        user_relation_graph: np.ndarray, shape=(num_users, num_users)，用户相似度矩阵
-        neighborhood_size: int，若 >0，则对每个用户选取值最大的 top-k 邻居
-        neighborhood_threshold: float，当 neighborhood_size=0 时使用阈值方式：
-            阈值 = user_relation_graph 平均值 * neighborhood_threshold
-    功能:
-        若 neighborhood_size > 0:
-            对每个用户，找到相似度最高的 neighborhood_size 个用户，将对应位置置为 1/k，其余置 0
-        否则:
-            计算相似度阈值，对于每个用户，
-                若某相似度 > 阈值，则将对应位置置为 1/高相似度个数
-                若所有相似度均 <= 阈值，则将自身位置置为 1（孤立结点）
-    输出:
-        topk_user_relation_graph: np.ndarray, shape=(num_users, num_users)，稀疏邻接矩阵
+        item_graph: 第一张图，基于电影特征的相似度矩阵
+        mlp_graph: 第二张图，基于神经网络参数的相似度矩阵
+        alpha: 两张图的融合权重，默认 0.5（平分秋色）
     """
+    # 【双图一致性融合】：把两张图按权重叠加！
+    # 只有在两张图里相似度都高的人，融合后的最终分数才会高
+    if mlp_graph is not None:
+        user_relation_graph = alpha * item_graph + (1.0 - alpha) * mlp_graph
+    else:
+        user_relation_graph = item_graph
+
     num_users = user_relation_graph.shape[0]
     topk_user_relation_graph = np.zeros(user_relation_graph.shape, dtype='float32')
 
@@ -171,39 +189,25 @@ def select_topk_neighboehood(user_relation_graph, neighborhood_size, neighborhoo
         for i in range(num_users):
             high_idxs = np.where(user_relation_graph[i] > similarity_threshold)[0]
             if len(high_idxs) > 0:
-                # 将所有相似度高于阈值的位置置为 1/高于阈值的用户数
                 for j in high_idxs:
                     topk_user_relation_graph[i][j] = 1.0 / len(high_idxs)
             else:
-                # 若没有高于阈值的邻居，则将自身置为 1
                 topk_user_relation_graph[i][i] = 1.0
 
     return topk_user_relation_graph
 
+
 def MP_on_graph(round_user_params, item_num, latent_dim, topk_user_relation_graph, layers):
     """
     在用户关系图上进行图消息传递，更新全局 item embedding
-
-    参数:
-        round_user_params: dict, key=userID，value={'embedding_item.weight': Tensor}
-        item_num: int，总物品数
-        latent_dim: int，embedding 维度
-        topk_user_relation_graph: np.ndarray, shape=(num_users, num_users)，稀疏邻接矩阵
-        layers: int，消息传递层数
-    功能:
-        1. 将每个用户的 item embedding 拉平为 (item_num * latent_dim) 向量，组成矩阵 (num_users, item_num*latent_dim)
-        2. 多轮图消息传递： aggregated = A @ item_embedding
-           重复 layers 次（第一次得到一次聚合结果，之后再聚合）
-        3. 将聚合后的向量重构为 (item_num, latent_dim)，保存到字典 item_embedding_dict
-        4. 计算 'global' embedding：为所有用户聚合后的 embedding 的均值
-    输出:
-        item_embedding_dict: dict, key=userID 或 'global', value=Tensor shape=(item_num, latent_dim)
     """
     num_users = len(round_user_params)
     # 1. 准备 item_embedding 矩阵
     item_embedding = np.zeros((num_users, item_num * latent_dim), dtype='float32')
-    for user in round_user_params.keys():
-        item_embedding[user] = round_user_params[user]['embedding_item.weight'].numpy().flatten()
+
+    # 🌟 修改点 1：用 enumerate 获取索引 idx
+    for idx, user in enumerate(round_user_params.keys()):
+        item_embedding[idx] = round_user_params[user]['embedding_item.weight'].numpy().flatten()
 
     # 2. 多轮消息传递
     aggregated = np.matmul(topk_user_relation_graph, item_embedding)
@@ -212,11 +216,14 @@ def MP_on_graph(round_user_params, item_num, latent_dim, topk_user_relation_grap
 
     # 3. 重构回 item embedding 并保存到字典
     item_embedding_dict = {}
-    for user in round_user_params.keys():
+
+    # 🌟 修改点 2：依然用 idx，确保从 aggregated 里按顺序取回正确的数据
+    for idx, user in enumerate(round_user_params.keys()):
         # 将用户对应行恢复为 (item_num, latent_dim)
         item_embedding_dict[user] = torch.from_numpy(
-            aggregated[user].reshape(item_num, latent_dim)
+            aggregated[idx].reshape(item_num, latent_dim)
         )
+
     # 4. 计算全局 embedding = 所有用户 embedding 的均值
     all_embeddings = list(item_embedding_dict.values())
     global_embedding = sum(all_embeddings) / num_users

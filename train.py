@@ -53,7 +53,7 @@ parser.add_argument('--latent_dim', type=int, default=32,
                     help="Embedding 维度")
 parser.add_argument('--num_negative', type=int, default=12,
                     help="每个正样本对应的负样本数量")
-parser.add_argument('--layers', type=str, default='64, 32, 16, 8',
+parser.add_argument('--layers', type=str, default='96, 32, 16, 8',
                     help="MLP 隐藏层维度列表，用逗号分隔")
 parser.add_argument('--l2_regularization', type=float, default=0.0,
                     help="L2 正则化系数（未直接使用）")
@@ -66,10 +66,17 @@ parser.add_argument('--device_id', type=int, default=0,
 parser.add_argument('--model_dir', type=str,
                     default='checkpoints/{}_Epoch{}_HR{:.4f}_NDCG{:.4f}.model',
                     help="模型保存路径模板，包含别名、轮次、HR 和 NDCG")
+parser.add_argument('--alpha', type=float, default=0.5,
+                    help="双图融合权重，0=只用interest图，1=只用item图，0.5=两图各半")
+parser.add_argument('--no_attention', action='store_true', default=False,
+                    help="加上这个参数就关掉注意力机制")
+parser.set_defaults(use_attention=True)
 args = parser.parse_args()
 
 # 将参数转换为字典，便于后续处理
 config = vars(args)
+config['use_cuda'] = False  # 强行把全局开关焊死在 False 上！
+config['use_attention'] = not config['no_attention']
 
 # 将层列表字符串转为 int 列表
 if isinstance(config['layers'], str) and ',' in config['layers']:
@@ -105,6 +112,7 @@ os.makedirs(path, exist_ok=True)  # 确保 log 目录存在
 current_time = datetime.datetime.now().strftime('%Y-%m-%d %H_%M_%S')
 logname = os.path.join(path, current_time + '.txt')
 initLogging(logname)  # 使用 utils.py 中的 initLogging
+logging.info(f"alias: {config['alias']}")
 
 # -----------------------------
 # 加载并预处理数据
@@ -223,7 +231,7 @@ for rnd in range(config['num_round']):
 # -----------------------------
 current_time = datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S')
 result_str = (
-    f"{current_time} - layers: {config['layers']} - lr: {config['lr']} - "
+    f"[{config['alias']}] {current_time} - layers: {config['layers']} - lr: {config['lr']} - "
     f"clients_sample_ratio: {config['clients_sample_ratio']} - num_round: {config['num_round']} - "
     f"neighborhood_size: {config['neighborhood_size']} - mp_layers: {config['mp_layers']} - "
     f"negatives: {config['num_negative']} - lr_eta: {config['lr_eta']} - "
