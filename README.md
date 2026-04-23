@@ -75,6 +75,7 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 | `--alpha` | 0.5 | alpha 模式下的融合权重；soft_intersection 模式下作为 trust 权重 β |
 | `--history_len` | 5 | 🌟 历史序列长度（注意力 keys 长度） |
 | `--no_attention` | off | 关闭历史序列注意力 |
+| `--graph_semantic` | `similarity` | 🌟 V2：`similarity`=新默认（值越大越相似）；`distance`=旧 bug 行为（复现用） |
 | `--dp` | 0.0 | Laplace 噪声 scale（ε = 1/dp） |
 | `--optimizer` | `sgd` | 可选 `sgd` / `adam` / `adamw` |
 | `--lr_u` / `--lr_i` | - | 直接指定用户/物品 embedding 学习率 |
@@ -86,22 +87,43 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 | `--early_stop_patience` | 0 | 验证集 HR 连续 N 轮不升则停止 |
 | `--metrics_json` | - | 结束时把完整指标写入 JSON |
 
+🌟 **V2 新增融合模式**（`--graph_fusion`）：
+- `intersection` — 严格交集（毕设核心），修复 cosine 语义后 **HR=0.5080 登顶**
+- `product` — 两图相似度逐元素积后筛选（软 AND）
+- `rank_intersection` — 按两图 rank 和取 Top-K
+- `soft_intersection` — 以 alpha 作为 trust 权重 β（V1 遗留）
+
 ## 实验矩阵与报告
 
-**毕设主交付**：[THESIS_REPORT.md](THESIS_REPORT.md) — 双图可信邻居的完整评估（21 组联邦 + 1 组中心化）。
+**毕设主交付**：[THESIS_REPORT.md](THESIS_REPORT.md) — V2 突破性结果（cosine 语义修复 + 可信邻居登顶）。
 
 ```bash
-# 毕设主矩阵（17 组，≈100 min CPU）
-python experiments/run_thesis.py --dataset 100k --num_round 25 --early_stop 5
+# 🌟 V2 矩阵（16 组，≈100 min CPU）—— 毕设最终结果
+python experiments/run_thesis_v2.py --dataset 100k --num_round 25 --early_stop 5
 
-# 软交集 β sweep（4 组，≈25 min CPU）
+# V1 旧矩阵保留作为对照（17+4 组）
+python experiments/run_thesis.py --dataset 100k --num_round 25 --early_stop 5
 python experiments/run_thesis_soft.py --dataset 100k --num_round 25 --early_stop 5
 
 # 第 7-8 周报告的旧矩阵（bug 修复 + 超参对比）
 python experiments/run_week7_8.py --dataset 100k --num_round 20 --early_stop 5
 ```
 
-## 毕设关键发现摘要
+## 毕设关键发现摘要（V2）
+
+| 方法 | HR@10 | vs 中心化 |
+|------|-------|-----------|
+| 🌟 **修复 + 严格交集** (V1_sim_intersection) | **0.5080** | **74%** |
+| 修复 + 交集 + DP ε=100 | 0.5037 | 73% |
+| 修复 + 仅 item 图 | 0.5016 | 72% |
+| 修复 + product 融合 | 0.4889 | 71% |
+| FedAvg 无图 | 0.4655 | 68% |
+| 修复 + 并集 | 0.4592 | 67% |
+| 旧 bug + intersection | 0.4189 | 61% |
+
+详见 [THESIS_REPORT.md 第 0 节](THESIS_REPORT.md#0-v2-突破总结必读)。
+
+## V1 结果（保留作为对照）
 
 | 方法 | HR@10 | vs 中心化 |
 |------|-------|-----------|

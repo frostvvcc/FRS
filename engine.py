@@ -184,16 +184,22 @@ class Engine(object):
             return
 
         # 1. 构建两张图
+        #    semantic='similarity' (新默认)：值越大越相似，argmax 选真正的邻居
+        #    semantic='distance'  (旧 bug 兼容)：argmax 选最不相似的用户（仅用于复现旧结果）
+        graph_semantic = self.config.get('graph_semantic', 'similarity')
         item_graph = construct_user_relation_graph_via_item(
             round_user_params,
             self.config['num_items'],
             self.config['latent_dim'],
-            self.config['similarity_metric']
+            self.config['similarity_metric'],
+            semantic=graph_semantic,
         )
         interest_graph = None
-        if mode in ('alpha', 'intersection', 'union', 'soft_intersection', 'interest_only'):
+        if mode in ('alpha', 'intersection', 'union', 'soft_intersection',
+                    'interest_only', 'product', 'rank_intersection'):
             interest_graph = construct_user_relation_graph_via_interest(
-                round_user_params, self.config['similarity_metric']
+                round_user_params, self.config['similarity_metric'],
+                semantic=graph_semantic,
             )
 
         # 2. 按模式选择邻居
@@ -213,6 +219,12 @@ class Engine(object):
             fusion_for_select = 'soft_intersection'
             # 软交集：用 config['alpha'] 作为 trust_weight β
             alpha_for_select = float(self.config.get('alpha', 0.7))
+        elif mode == 'product':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = (
+                item_graph, interest_graph, 'product', 0.5)
+        elif mode == 'rank_intersection':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = (
+                item_graph, interest_graph, 'rank_intersection', 0.5)
         else:
             raise ValueError(f"unknown graph_fusion mode: {mode}")
 

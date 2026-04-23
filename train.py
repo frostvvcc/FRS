@@ -74,11 +74,16 @@ parser.add_argument('--no_attention', action='store_true', default=False,
 parser.add_argument('--no_graph', action='store_true', default=False,
                     help="FedAvg 基线：聚合阶段直接对 item embedding 求平均，跳过双图")
 parser.add_argument('--graph_fusion', type=str, default='alpha',
-                    choices=['alpha', 'intersection', 'union', 'soft_intersection', 'no_graph',
-                             'item_only', 'interest_only'],
+                    choices=['alpha', 'intersection', 'union', 'soft_intersection',
+                             'product', 'rank_intersection',
+                             'no_graph', 'item_only', 'interest_only'],
                     help="双图融合策略：alpha=线性加权（旧）; intersection=严格交集; "
                          "soft_intersection=软交集（以 alpha 参数作为 trust 权重 β）; "
+                         "product=相似度逐元素积后筛选; rank_intersection=按两图 rank 和取 TopK; "
                          "union=并集; no_graph=FedAvg; item_only/interest_only=单图")
+parser.add_argument('--graph_semantic', type=str, default='similarity',
+                    choices=['similarity', 'distance'],
+                    help="图语义：similarity=新默认（值越大越相似）; distance=旧 bug 行为（复现用）")
 parser.add_argument('--history_len', type=int, default=5,
                     help="每个样本对应的历史物品序列长度（注意力 keys 长度）")
 parser.add_argument('--lr_u', type=float, default=None,

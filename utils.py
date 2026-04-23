@@ -105,73 +105,87 @@ def use_optimizer(network, params):
 # -----------------------------
 # 构建用户关系图与图消息传递
 # -----------------------------
-def construct_user_relation_graph_via_item(round_user_params, item_num, latent_dim, similarity_metric):
+def _distances_to_similarity(adj: np.ndarray, metric: str) -> np.ndarray:
+    """将 pairwise_distances 的输出归一化为"越大越相似"的相似度矩阵。
+
+    历史 bug：`cosine` 分支原先直接返回距离矩阵，导致下游 `argmax` 选的是
+    "距离最大 = 最不相似" 的用户作为邻居。本函数统一转为相似度。
     """
-    构建用户关系图（基于 item embedding 的用户相似度矩阵）
+    if metric == 'cosine':
+        # cosine distance ∈ [0, 2] → similarity = 1 - distance ∈ [-1, 1]
+        return 1.0 - adj
+    # 其他指标：以 -distance 表达相似度（数值越大越相似）
+    return -adj
+
+
+def construct_user_relation_graph_via_item(round_user_params, item_num, latent_dim,
+                                           similarity_metric, semantic='similarity'):
+    """构建基于 item embedding 的用户关系图。
 
     参数:
-        round_user_params: dict, key 为 userID，value 为 dict 包含 'embedding_item.weight' Tensor
-        item_num: int，总物品数
-        latent_dim: int，embedding 维度
-        similarity_metric: str，相似度度量方式（如 'cosine'）
-    功能:
-        1. 将每个用户的 item embedding 拉平为 shape = (item_num * latent_dim) 的向量
-        2. 计算用户之间的距离矩阵（pairwise_distances）
-        3. 若相似度度量为 'cosine'，返回距离矩阵；否则返回 -距离矩阵
-    输出:
-        adj: np.ndarray, shape = (num_users, num_users)，用户之间的相似度（或负距离）
+        semantic: 'similarity' — 返回相似度矩阵（越大越相似，推荐）🌟 新默认
+                  'distance'   — 返回原始距离矩阵（旧 bug 行为，仅用于复现）
     """
     num_users = len(round_user_params)
-    # 初始化存储所有用户拉平后的 item embedding
     item_embedding = np.zeros((num_users, item_num * latent_dim), dtype='float32')
     for idx, user in enumerate(round_user_params.keys()):
-        # 将用户的 item embedding 拉平为一维向量，用 idx 作为数组行号
         item_embedding[idx] = round_user_params[user]['embedding_item.weight'].numpy().flatten()
-    # 使用 sklearn 的 pairwise_distances 计算用户间距离或相似度
     adj = pairwise_distances(item_embedding, metric=similarity_metric)
-    if similarity_metric == 'cosine':
-        return adj
-    else:
-        # 对于其他度量方式，返回负值以便后续取高相似度
-        return -adj
-def construct_user_relation_graph_via_interest(round_user_params, similarity_metric):
-    """
-    🌟 严格对齐论文：构建兴趣语义图（基于客户端上传的兴趣特征向量）
-    """
+
+    if semantic == 'distance':
+        # 旧 bug 行为：cosine 返回距离，其他指标返回 -距离
+        return adj if similarity_metric == 'cosine' else -adj
+    return _distances_to_similarity(adj, similarity_metric)
+
+
+def construct_user_relation_graph_via_interest(round_user_params, similarity_metric,
+                                               semantic='similarity'):
+    """构建基于兴趣向量的用户关系图（语义同上）。"""
     num_users = len(round_user_params)
     interest_embeddings = []
-
     for idx, user in enumerate(round_user_params.keys()):
-        # 直接拉平提取到的兴趣向量
-        user_interest_vector = round_user_params[user]['interest_params'].numpy().flatten()
-        interest_embeddings.append(user_interest_vector)
-
+        interest_embeddings.append(round_user_params[user]['interest_params'].numpy().flatten())
     interest_embeddings = np.array(interest_embeddings, dtype='float32')
-
-    # 使用 sklearn 计算用户兴趣特征的相似度
     adj = pairwise_distances(interest_embeddings, metric=similarity_metric)
-    if similarity_metric == 'cosine':
-        return adj
-    else:
-        return -adj
+
+    if semantic == 'distance':
+        return adj if similarity_metric == 'cosine' else -adj
+    return _distances_to_similarity(adj, similarity_metric)
 
 
 
-def _single_graph_neighbor_sets(graph, neighborhood_size, neighborhood_threshold):
-    """对单张相似度图，按 Top-K 或阈值方式，返回每个用户的邻居索引集合列表。
+def _single_graph_neighbor_sets(graph, neighborhood_size, neighborhood_threshold,
+                                exclude_self: bool = True):
+    """对单张图（相似度或距离），按 Top-K 或阈值方式返回每个用户的邻居索引集合。
+
+    参数:
+        exclude_self: 自环排除。相似度图下 self-similarity=1 是最大值，若不排除
+                      argmax 会永远选到自己；距离图下 self-distance=0 是最小值，
+                      argmax 自然不会选到自己。默认排除，同时兼容两种语义。
 
     返回 List[Set[int]]，长度 = num_users。
     """
     n = graph.shape[0]
+    g = graph.copy() if exclude_self else graph
+    if exclude_self:
+        np.fill_diagonal(g, -np.inf)
+
     neighbors: list[set] = []
     if neighborhood_size > 0:
         for u in range(n):
-            topk = graph[u].argsort()[-neighborhood_size:][::-1]
+            topk = g[u].argsort()[-neighborhood_size:][::-1]
             neighbors.append(set(int(i) for i in topk))
     else:
-        threshold = np.mean(graph) * neighborhood_threshold
+        # 阈值模式：相对均值的缩放因子；对相似度图等价于"高于均值的才算邻居"
+        # 注意：exclude_self=True 时对角线为 -inf，不影响 np.mean（numpy 会忽略 inf）
+        # 为稳健起见显式用非对角元素计算均值
+        mask = ~np.eye(n, dtype=bool)
+        threshold = float(np.mean(g[mask])) * float(neighborhood_threshold)
         for u in range(n):
-            idxs = np.where(graph[u] > threshold)[0]
+            idxs = np.where(g[u] > threshold)[0]
+            # 排除自己（如果还在）
+            if exclude_self:
+                idxs = idxs[idxs != u]
             neighbors.append(set(int(i) for i in idxs))
     return neighbors
 
@@ -227,6 +241,8 @@ def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborh
 
     num_users = item_graph.shape[0]
     out = np.zeros(item_graph.shape, dtype='float32')
+    # 这些累计量被多个 fusion 分支共享，必须提前初始化
+    isolated = 0
 
     if fusion == 'alpha':
         # 旧实现（向后兼容），当作对照组保留
@@ -245,6 +261,100 @@ def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborh
                         out[u][j] = 1.0 / len(idx)
                 else:
                     out[u][u] = 1.0
+        return (out, stats) if return_stats else out
+
+    # === 毕设核心创新（升级版）===
+    # 'product':           两图相似度逐元素相乘（软 AND），然后 Top-K / 阈值选择
+    #                      —— 不丢弃边，但强烈抑制双图分歧的邻居
+    # 'rank_intersection': 分别算各图 rank，取"rank_item + rank_interest" 最小的 Top-K
+    #                      —— 比阈值交集更稳健，可控邻居数
+    if fusion == 'product':
+        # 把两图相似度归一到 [0, 1] 防止负值相乘翻转方向
+        def _normalize01(a: np.ndarray) -> np.ndarray:
+            mn, mx = float(a.min()), float(a.max())
+            return (a - mn) / max(mx - mn, 1e-9)
+
+        item_sim = _normalize01(item_graph)
+        int_sim = _normalize01(mlp_graph)
+        product_graph = item_sim * int_sim  # 元素积：双图都高才高，一侧低则整体低
+        neighbors = _single_graph_neighbor_sets(product_graph, neighborhood_size,
+                                                neighborhood_threshold)
+        # 记录统计（用原双图算假邻居率供对比）
+        item_neighbors = _single_graph_neighbor_sets(item_graph, neighborhood_size,
+                                                    neighborhood_threshold)
+        int_neighbors = _single_graph_neighbor_sets(mlp_graph, neighborhood_size,
+                                                    neighborhood_threshold)
+        for u in range(num_users):
+            si, sj = item_neighbors[u], int_neighbors[u]
+            inter = si & sj
+            union = si | sj
+            stats['avg_trusted_neighbors'] = stats.get('avg_trusted_neighbors', 0.0) + len(inter)
+            stats['avg_union_neighbors'] = stats.get('avg_union_neighbors', 0.0) + len(union)
+            if len(union) > 0:
+                stats['avg_false_neighbor_ratio'] = stats.get('avg_false_neighbor_ratio', 0.0) + \
+                    (len(union) - len(inter)) / len(union)
+
+            chosen = neighbors[u] if neighbors[u] else {u}
+            if not neighbors[u]:
+                isolated += 1
+            w = 1.0 / len(chosen)
+            for v in chosen:
+                out[u][v] = w
+        if num_users > 0:
+            stats['avg_trusted_neighbors'] /= num_users
+            stats['avg_union_neighbors'] /= num_users
+            stats['avg_false_neighbor_ratio'] /= num_users
+        stats['avg_item_neighbors'] = sum(len(s) for s in item_neighbors) / max(num_users, 1)
+        stats['avg_interest_neighbors'] = sum(len(s) for s in int_neighbors) / max(num_users, 1)
+        stats['isolated_nodes'] = isolated
+        return (out, stats) if return_stats else out
+
+    if fusion == 'rank_intersection':
+        # 每张图的 rank（越小 = 越相似）
+        def _rank_matrix(g: np.ndarray) -> np.ndarray:
+            tmp = g.copy()
+            np.fill_diagonal(tmp, -np.inf)
+            # argsort desc → 排名（大值对应小 rank）
+            order = tmp.argsort(axis=1)[:, ::-1]
+            ranks = np.empty_like(order)
+            idx = np.arange(g.shape[1])
+            for r in range(g.shape[0]):
+                ranks[r, order[r]] = idx
+            return ranks  # 越小越相似
+
+        r_item = _rank_matrix(item_graph)
+        r_int = _rank_matrix(mlp_graph)
+        combined_rank = r_item + r_int  # 两图 rank 和越小 → 双图都认为相似
+        # 取 Top-K（combined_rank 越小越好）
+        K = neighborhood_size if neighborhood_size > 0 else 20
+        item_neighbors = _single_graph_neighbor_sets(item_graph, neighborhood_size,
+                                                    neighborhood_threshold)
+        int_neighbors = _single_graph_neighbor_sets(mlp_graph, neighborhood_size,
+                                                    neighborhood_threshold)
+        for u in range(num_users):
+            si, sj = item_neighbors[u], int_neighbors[u]
+            inter = si & sj
+            union = si | sj
+            stats['avg_trusted_neighbors'] = stats.get('avg_trusted_neighbors', 0.0) + len(inter)
+            stats['avg_union_neighbors'] = stats.get('avg_union_neighbors', 0.0) + len(union)
+            if len(union) > 0:
+                stats['avg_false_neighbor_ratio'] = stats.get('avg_false_neighbor_ratio', 0.0) + \
+                    (len(union) - len(inter)) / len(union)
+            chosen = combined_rank[u].argsort()[:K].tolist()
+            chosen = [int(v) for v in chosen if v != u][:K]
+            if not chosen:
+                chosen = [u]
+                isolated += 1
+            w = 1.0 / len(chosen)
+            for v in chosen:
+                out[u][v] = w
+        if num_users > 0:
+            stats['avg_trusted_neighbors'] /= num_users
+            stats['avg_union_neighbors'] /= num_users
+            stats['avg_false_neighbor_ratio'] /= num_users
+        stats['avg_item_neighbors'] = sum(len(s) for s in item_neighbors) / max(num_users, 1)
+        stats['avg_interest_neighbors'] = sum(len(s) for s in int_neighbors) / max(num_users, 1)
+        stats['isolated_nodes'] = isolated
         return (out, stats) if return_stats else out
 
     # 毕设核心创新：分图筛选后做"可信邻居"筛选

@@ -1,0 +1,36 @@
+Planned 16 experiments
+[RUN] V0_legacy_intersection
+[DONE] V0_legacy_intersection (355.5s)
+[RUN] V0_legacy_union
+[DONE] V0_legacy_union (358.4s)
+[RUN] V1_sim_intersection
+[DONE] V1_sim_intersection (361.6s)
+[RUN] V1_sim_union
+[DONE] V1_sim_union (366.0s)
+[RUN] V1_sim_no_graph
+[DONE] V1_sim_no_graph (352.8s)
+[RUN] V2_topk10_intersection
+[DONE] V2_topk10_intersection (332.2s)
+[RUN] V2_topk20_intersection
+[DONE] V2_topk20_intersection (361.5s)
+[RUN] V2_topk50_intersection
+[DONE] V2_topk50_intersection (368.1s)
+[RUN] V3_product_thresh
+[DONE] V3_product_thresh (401.3s)
+[RUN] V3_product_topk20
+[DONE] V3_product_topk20 (601.8s)
+[RUN] V4_rank_topk20
+[DONE] V4_rank_topk20 (469.2s)
+[RUN] V4_rank_topk50
+[DONE] V4_rank_topk50 (436.8s)
+[RUN] V5_item_only_sim
+[DONE] V5_item_only_sim (443.4s)
+[RUN] V5_interest_only_sim
+[DONE] V5_interest_only_sim (391.1s)
+[RUN] V6_int_dp0.005
+[DONE] V6_int_dp0.005 (404.9s)
+[RUN] V6_int_dp0.01
+[DONE] V6_int_dp0.01 (465.7s)
+
+Total 107.8 min
+Wrote results/thesis_v2/summary.csv
