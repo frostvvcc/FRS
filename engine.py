@@ -54,6 +54,10 @@ class Engine(object):
         # self.crit = torch.nn.MSELoss()
         self.crit = torch.nn.BCELoss()
         self.top_k = 10
+        # 每轮聚合的统计信息（由 aggregate_clients_params 写入；外部读取）
+        self.last_aggregate_stats = {}
+        # 每轮上传字节数（客户端上传到服务端的参数总量，float32=4 字节）
+        self.last_round_upload_bytes = 0
 
     def instance_user_train_loader(self, user_train_data):
         """
@@ -148,12 +152,24 @@ class Engine(object):
 
     def aggregate_clients_params(self, round_user_params):
         """
-        服务端聚合当前轮参与用户上传的参数（双图一致性版本）。
-        若 config['no_graph']=True 则退化为 FedAvg 基线：直接对所有用户的
-        item embedding 求平均并广播给全体用户，作为 global embedding。
+        服务端聚合当前轮参与用户上传的参数。
+
+        由 config['graph_fusion'] 选择聚合策略：
+          'alpha'         — 旧实现：alpha*item + (1-alpha)*interest 融合后筛选（对照）
+          'intersection'  — 🌟 毕设核心创新：两图独立筛选邻居后取交集（"可信邻居"）
+          'union'         — 两图独立筛选后取并集（消融对照）
+          'no_graph'      — FedAvg 基线：直接均值聚合
+          'item_only'     — 只用 item 图
+          'interest_only' — 只用 interest 图
+
+        旧字段 config['no_graph']=True 等价于 mode='no_graph'。
         """
-        # no_graph 基线：直接平均，跳过图构建与消息传递
+        mode = self.config.get('graph_fusion', 'alpha')
         if self.config.get('no_graph', False):
+            mode = 'no_graph'
+
+        # FedAvg 基线
+        if mode == 'no_graph':
             avg = None
             n = 0
             for uid, params in round_user_params.items():
@@ -164,30 +180,53 @@ class Engine(object):
             item_embedding_dict = {uid: avg.clone() for uid in round_user_params.keys()}
             item_embedding_dict['global'] = avg
             self.server_model_param['embedding_item.weight'] = item_embedding_dict
+            self.last_aggregate_stats = {'mode': mode}
             return
 
-        # 1. 构建第一张图：表面兴趣图 (Item Embedding)
+        # 1. 构建两张图
         item_graph = construct_user_relation_graph_via_item(
             round_user_params,
             self.config['num_items'],
             self.config['latent_dim'],
             self.config['similarity_metric']
         )
+        interest_graph = None
+        if mode in ('alpha', 'intersection', 'union', 'soft_intersection', 'interest_only'):
+            interest_graph = construct_user_relation_graph_via_interest(
+                round_user_params, self.config['similarity_metric']
+            )
 
-        # 🌟 修改 1.5. 构建第二张图：兴趣语义图 (严格对齐论文)
-        interest_graph = construct_user_relation_graph_via_interest(
-            round_user_params,
-            self.config['similarity_metric']
-        )
+        # 2. 按模式选择邻居
+        if mode == 'item_only':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = item_graph, None, 'alpha', 1.0
+        elif mode == 'interest_only':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = interest_graph, None, 'alpha', 1.0
+        elif mode == 'alpha':
+            graph_a, graph_b = item_graph, interest_graph
+            fusion_for_select, alpha_for_select = 'alpha', self.config.get('alpha', 0.5)
+        elif mode == 'intersection':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = item_graph, interest_graph, 'intersection', 0.5
+        elif mode == 'union':
+            graph_a, graph_b, fusion_for_select, alpha_for_select = item_graph, interest_graph, 'union', 0.5
+        elif mode == 'soft_intersection':
+            graph_a, graph_b = item_graph, interest_graph
+            fusion_for_select = 'soft_intersection'
+            # 软交集：用 config['alpha'] 作为 trust_weight β
+            alpha_for_select = float(self.config.get('alpha', 0.7))
+        else:
+            raise ValueError(f"unknown graph_fusion mode: {mode}")
 
-        # 2. 选取 Top-K 邻居（双图一致性筛选！）
-        topk_user_relation_graph = select_topk_neighboehood(
-            item_graph=item_graph,  # 传第一张图 (行为协同图)
-            mlp_graph=interest_graph,  # 传新的图！(兴趣语义图)
+        topk_user_relation_graph, stats = select_topk_neighboehood(
+            item_graph=graph_a,
+            mlp_graph=graph_b,
             neighborhood_size=self.config['neighborhood_size'],
             neighborhood_threshold=self.config['neighborhood_threshold'],
-            alpha=self.config.get('alpha', 0.5)  # 权重各占一半，完美一致
+            alpha=alpha_for_select,
+            fusion=fusion_for_select,
+            return_stats=True,
         )
+        stats['mode'] = mode
+        self.last_aggregate_stats = stats
 
         # 3. 图消息传递，更新全局 item embedding
         updated_item_embedding = MP_on_graph(
@@ -357,6 +396,13 @@ class Engine(object):
                 round_participant_params[user]['embedding_item.weight'].shape
             ).sample()
             round_participant_params[user]['embedding_item.weight'] += noise
+
+        # 统计本轮上传字节数（每位参与者上传 item_emb + interest_emb；float32=4 字节）
+        total_bytes = 0
+        for uid, params in round_participant_params.items():
+            for _, t in params.items():
+                total_bytes += int(t.numel()) * 4
+        self.last_round_upload_bytes = total_bytes
 
         # 4. 服务端聚合本轮所有用户上传的 item embedding
         self.aggregate_clients_params(round_participant_params)

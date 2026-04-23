@@ -1,0 +1,10 @@
+[RUN] S1_soft_beta_0.5  ['--graph_fusion', 'soft_intersection', '--alpha', '0.5']
+[DONE] S1_soft_beta_0.5 (356.0s)
+[RUN] S2_soft_beta_0.7  ['--graph_fusion', 'soft_intersection', '--alpha', '0.7']
+[DONE] S2_soft_beta_0.7 (361.9s)
+[RUN] S3_soft_beta_0.85  ['--graph_fusion', 'soft_intersection', '--alpha', '0.85']
+[DONE] S3_soft_beta_0.85 (350.8s)
+[RUN] S4_soft_beta_0.95  ['--graph_fusion', 'soft_intersection', '--alpha', '0.95']
+[DONE] S4_soft_beta_0.95 (362.5s)
+
+Total 23.9 min

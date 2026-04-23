@@ -73,6 +73,14 @@ parser.add_argument('--no_attention', action='store_true', default=False,
                     help="加上这个参数就关掉注意力机制")
 parser.add_argument('--no_graph', action='store_true', default=False,
                     help="FedAvg 基线：聚合阶段直接对 item embedding 求平均，跳过双图")
+parser.add_argument('--graph_fusion', type=str, default='alpha',
+                    choices=['alpha', 'intersection', 'union', 'soft_intersection', 'no_graph',
+                             'item_only', 'interest_only'],
+                    help="双图融合策略：alpha=线性加权（旧）; intersection=严格交集; "
+                         "soft_intersection=软交集（以 alpha 参数作为 trust 权重 β）; "
+                         "union=并集; no_graph=FedAvg; item_only/interest_only=单图")
+parser.add_argument('--history_len', type=int, default=5,
+                    help="每个样本对应的历史物品序列长度（注意力 keys 长度）")
 parser.add_argument('--lr_u', type=float, default=None,
                     help="直接指定用户 embedding 学习率（覆盖 lr_eta 公式）")
 parser.add_argument('--lr_i', type=float, default=None,
@@ -180,9 +188,9 @@ logging.info('Range of userId is [{}, {}]'.format(rating.userId.min(), rating.us
 logging.info('Range of itemId is [{}, {}]'.format(rating.itemId.min(), rating.itemId.max()))
 
 # -----------------------------
-# 构造 SampleGenerator，用于生成训练、验证、测试所需数据
+# 构造 SampleGenerator，用于生成训练、验证、测试所需数据（含可配置历史长度）
 # -----------------------------
-sample_generator = SampleGenerator(ratings=rating)
+sample_generator = SampleGenerator(ratings=rating, history_len=config.get('history_len', 5))
 # 获取验证集张量：[val_users, val_items, negative_users, negative_items]
 validate_data = sample_generator.validate_data
 # 获取测试集张量：[test_users, test_items, negative_users, negative_items]
@@ -200,6 +208,8 @@ test_loss_list = []        # 每轮测试集各用户 loss 字典
 val_loss_list = []         # 每轮验证集各用户 loss 字典
 best_val_hr = 0            # 用于记录验证集上的最佳 HR
 final_test_round = 0       # 最佳验证轮次对应的测试结果轮次
+upload_bytes_per_round = [] # 每轮上传字节数
+aggregate_stats_per_round = []  # 每轮聚合统计（含假邻居率等）
 
 for rnd in range(config['num_round']):
     """
@@ -225,6 +235,12 @@ for rnd in range(config['num_round']):
     participants = engine.fed_train_a_round(all_train_data, round_id=rnd)
     # 将参与用户数或列表长度加入 train_loss_list 以供查看训练时进度
     train_loss_list.append(len(participants))
+    # 采集通讯成本与聚合统计（创新点相关）
+    upload_bytes_per_round.append(int(engine.last_round_upload_bytes))
+    aggregate_stats_per_round.append({k: (float(v) if isinstance(v, (int, float)) else v)
+                                      for k, v in engine.last_aggregate_stats.items()})
+    if engine.last_aggregate_stats:
+        logging.info(f"[Round {rnd}] agg_stats = {engine.last_aggregate_stats}")
 
     logging.info('-' * 80)
     logging.info('Testing phase!')
@@ -308,6 +324,23 @@ if config.get('metrics_json'):
         'ndcg_list': [float(x) for x in ndcg_list],
         'val_hr_list': [float(x) for x in val_hr_list],
         'val_ndcg_list': [float(x) for x in val_ndcg_list],
+        'upload_bytes_per_round': upload_bytes_per_round,
+        'total_upload_bytes': int(sum(upload_bytes_per_round)),
+        'aggregate_stats_per_round': aggregate_stats_per_round,
+        # 最后一轮的假邻居率 / 孤立节点作为快照（便于汇总）
+        'final_false_neighbor_ratio': float(
+            aggregate_stats_per_round[-1].get('avg_false_neighbor_ratio', 0.0)
+        ) if aggregate_stats_per_round else 0.0,
+        'final_avg_trusted_neighbors': float(
+            aggregate_stats_per_round[-1].get('avg_trusted_neighbors', 0.0)
+        ) if aggregate_stats_per_round else 0.0,
+        'final_isolated_nodes': int(
+            aggregate_stats_per_round[-1].get('isolated_nodes', 0)
+        ) if aggregate_stats_per_round else 0,
+        # 朴素 (eps) 估计：ε_per_round = sensitivity / dp；总 ε ≈ T × ε_per_round
+        'epsilon_per_round': (None if config.get('dp', 0.0) <= 0 else 1.0 / float(config['dp'])),
+        'epsilon_total_naive': (None if config.get('dp', 0.0) <= 0
+                                else float(len(hit_ratio_list)) / float(config['dp'])),
         'config': {k: (v if isinstance(v, (int, float, str, bool, list)) or v is None else str(v))
                    for k, v in config.items()},
     }

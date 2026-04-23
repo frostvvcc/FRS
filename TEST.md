@@ -23,6 +23,7 @@ python tests/test_smoke.py
 | `tests/test_metrics.py` | `MetronAtK` 的 HR@K / NDCG@K 计算 |
 | `tests/test_smoke.py` | `MLP.forward` 输出形状 + 注意力路径一致性 |
 | `tests/test_engine_features.py` | `--no_graph` 退化为均值聚合；`--optimizer adam` / `--lr_u` / `--lr_i` 覆写生效 |
+| `tests/test_trusted_neighbors.py` | 🌟 毕设创新：可信邻居交集/并集筛选、假邻居率统计、Laplace ε 计算、孤立节点回退 |
 
 ## 开发约定
 

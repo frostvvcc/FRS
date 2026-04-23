@@ -157,44 +157,189 @@ def construct_user_relation_graph_via_interest(round_user_params, similarity_met
 
 
 
-def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborhood_threshold, alpha=1.0):
-    """
-    🌟 第 5 周核心创新：基于双图一致性的邻居筛选
-    参数:
-        item_graph: 第一张图，基于电影特征的相似度矩阵
-        mlp_graph: 第二张图，基于神经网络参数的相似度矩阵
-        alpha: 两张图的融合权重，默认 0.5（平分秋色）
-    """
-    # 【双图一致性融合】：把两张图按权重叠加！
-    # 只有在两张图里相似度都高的人，融合后的最终分数才会高
-    if mlp_graph is not None:
-        user_relation_graph = alpha * item_graph + (1.0 - alpha) * mlp_graph
-    else:
-        user_relation_graph = item_graph
+def _single_graph_neighbor_sets(graph, neighborhood_size, neighborhood_threshold):
+    """对单张相似度图，按 Top-K 或阈值方式，返回每个用户的邻居索引集合列表。
 
-    num_users = user_relation_graph.shape[0]
-    topk_user_relation_graph = np.zeros(user_relation_graph.shape, dtype='float32')
-
+    返回 List[Set[int]]，长度 = num_users。
+    """
+    n = graph.shape[0]
+    neighbors: list[set] = []
     if neighborhood_size > 0:
-        # 对每个用户选取 Top-K 邻居
-        for user in range(num_users):
-            user_neighborhood = user_relation_graph[user]
-            # argsort 取最大值对应的索引，[::-1] 反向获得降序
-            topk_indexes = user_neighborhood.argsort()[-neighborhood_size:][::-1]
-            for idx in topk_indexes:
-                topk_user_relation_graph[user][idx] = 1.0 / neighborhood_size
+        for u in range(n):
+            topk = graph[u].argsort()[-neighborhood_size:][::-1]
+            neighbors.append(set(int(i) for i in topk))
     else:
-        # 基于阈值选邻居
-        similarity_threshold = np.mean(user_relation_graph) * neighborhood_threshold
-        for i in range(num_users):
-            high_idxs = np.where(user_relation_graph[i] > similarity_threshold)[0]
-            if len(high_idxs) > 0:
-                for j in high_idxs:
-                    topk_user_relation_graph[i][j] = 1.0 / len(high_idxs)
-            else:
-                topk_user_relation_graph[i][i] = 1.0
+        threshold = np.mean(graph) * neighborhood_threshold
+        for u in range(n):
+            idxs = np.where(graph[u] > threshold)[0]
+            neighbors.append(set(int(i) for i in idxs))
+    return neighbors
 
-    return topk_user_relation_graph
+
+def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborhood_threshold,
+                             alpha=1.0, fusion='alpha', return_stats=False):
+    """双图邻居筛选，支持三种融合模式。
+
+    参数:
+        item_graph:   (n, n) ndarray，基于 item embedding 的用户相似度（"行为关联图"）
+        mlp_graph:    (n, n) ndarray 或 None，基于兴趣向量的用户相似度（"兴趣语义图"）
+        neighborhood_size:      Top-K 大小；0 → 阈值方式
+        neighborhood_threshold: 阈值方式下的相似度阈值乘数
+        alpha:        fusion='alpha' 时的双图融合权重，1.0=仅 item，0.0=仅 interest
+        fusion:       'alpha'        — 旧实现：alpha*item + (1-alpha)*mlp 后筛选
+                      'intersection' — 毕设创新：两图独立筛选后取交集（可信邻居）
+                      'union'        — 两图独立筛选后取并集（对照）
+        return_stats: True 时额外返回 dict（交集去掉的假邻居率等统计）
+
+    返回:
+        topk_user_relation_graph: (n, n) ndarray，行归一化的邻居权重
+        （若 return_stats=True，额外返回 stats dict）
+    """
+    stats = {
+        'avg_item_neighbors': 0.0,
+        'avg_interest_neighbors': 0.0,
+        'avg_trusted_neighbors': 0.0,
+        'avg_union_neighbors': 0.0,
+        'avg_false_neighbor_ratio': 0.0,   # (|item ∪ interest| - |交集|) / |并集|
+        'isolated_nodes': 0,               # 交集为空的用户数（触发回退）
+    }
+
+    # 兼容老路径：没有 mlp_graph 时，只能用 alpha 融合（即 item-only）
+    if mlp_graph is None:
+        fused = item_graph
+        num_users = fused.shape[0]
+        out = np.zeros(fused.shape, dtype='float32')
+        if neighborhood_size > 0:
+            for u in range(num_users):
+                top = fused[u].argsort()[-neighborhood_size:][::-1]
+                for i in top:
+                    out[u][i] = 1.0 / neighborhood_size
+        else:
+            th = np.mean(fused) * neighborhood_threshold
+            for u in range(num_users):
+                idx = np.where(fused[u] > th)[0]
+                if len(idx) > 0:
+                    for j in idx:
+                        out[u][j] = 1.0 / len(idx)
+                else:
+                    out[u][u] = 1.0
+        return (out, stats) if return_stats else out
+
+    num_users = item_graph.shape[0]
+    out = np.zeros(item_graph.shape, dtype='float32')
+
+    if fusion == 'alpha':
+        # 旧实现（向后兼容），当作对照组保留
+        fused = alpha * item_graph + (1.0 - alpha) * mlp_graph
+        if neighborhood_size > 0:
+            for u in range(num_users):
+                top = fused[u].argsort()[-neighborhood_size:][::-1]
+                for i in top:
+                    out[u][i] = 1.0 / neighborhood_size
+        else:
+            th = np.mean(fused) * neighborhood_threshold
+            for u in range(num_users):
+                idx = np.where(fused[u] > th)[0]
+                if len(idx) > 0:
+                    for j in idx:
+                        out[u][j] = 1.0 / len(idx)
+                else:
+                    out[u][u] = 1.0
+        return (out, stats) if return_stats else out
+
+    # 毕设核心创新：分图筛选后做"可信邻居"筛选
+    item_neighbors = _single_graph_neighbor_sets(item_graph, neighborhood_size, neighborhood_threshold)
+    int_neighbors = _single_graph_neighbor_sets(mlp_graph, neighborhood_size, neighborhood_threshold)
+
+    sum_item = sum(len(s) for s in item_neighbors)
+    sum_int = sum(len(s) for s in int_neighbors)
+    sum_trusted = 0
+    sum_union = 0
+    sum_false = 0
+    isolated = 0
+
+    # 软交集：alpha 在此复用为 trust_weight β∈[0,1]
+    #   - 可信边（两图交集）权重 β
+    #   - 单图确认边权重 (1-β)
+    #   - β=1.0 等同 intersection；β=0 等同仅保留单图独有；β≈0.5 等同 union（均匀权重）
+    trust_weight = float(alpha) if fusion == 'soft_intersection' else 1.0
+
+    for u in range(num_users):
+        si, sj = item_neighbors[u], int_neighbors[u]
+        inter = si & sj
+        union = si | sj
+        only_item = si - sj
+        only_int = sj - si
+        sum_trusted += len(inter)
+        sum_union += len(union)
+        if len(union) > 0:
+            sum_false += (len(union) - len(inter))
+
+        if fusion == 'intersection':
+            chosen = inter
+            if not chosen:
+                chosen = si if si else {u}
+                isolated += 1
+            w = 1.0 / len(chosen)
+            for v in chosen:
+                out[u][v] = w
+
+        elif fusion == 'union':
+            chosen = union if union else {u}
+            w = 1.0 / len(chosen)
+            for v in chosen:
+                out[u][v] = w
+
+        elif fusion == 'soft_intersection':
+            # 两类边 + 归一化
+            unconfirmed = only_item | only_int  # 只有一张图确认的边（"弱"邻居）
+            w_trust = trust_weight
+            w_other = 1.0 - trust_weight
+            # 处理端点：若 β=1 且交集空 → 回退 item 图
+            if not inter and w_trust >= 1.0:
+                chosen = si if si else {u}
+                isolated += 1
+                w = 1.0 / len(chosen)
+                for v in chosen:
+                    out[u][v] = w
+                continue
+            # 累加未归一化的权重
+            raw = {}
+            for v in inter:
+                raw[v] = raw.get(v, 0.0) + w_trust
+            for v in unconfirmed:
+                raw[v] = raw.get(v, 0.0) + w_other
+            if not raw:
+                raw = {u: 1.0}
+                isolated += 1
+            tot = sum(raw.values())
+            for v, w in raw.items():
+                out[u][v] = w / tot
+
+        else:
+            raise ValueError(f"unknown fusion mode: {fusion}")
+
+    if num_users > 0:
+        stats['avg_item_neighbors'] = sum_item / num_users
+        stats['avg_interest_neighbors'] = sum_int / num_users
+        stats['avg_trusted_neighbors'] = sum_trusted / num_users
+        stats['avg_union_neighbors'] = sum_union / num_users
+        stats['avg_false_neighbor_ratio'] = sum_false / max(sum_union, 1)
+        stats['isolated_nodes'] = isolated
+
+    return (out, stats) if return_stats else out
+
+
+def laplace_epsilon(noise_scale, sensitivity=1.0):
+    """把 Laplace 噪声 scale b 换算为 (ε)-DP 预算：ε = sensitivity / b。
+
+    假设单次查询 sensitivity=1（归一化后的 embedding 上传）。
+    组合到 T 轮基础顺序组合：ε_total ≈ T × ε_per_round。
+    精确 RDP/moments accountant 需要额外实现，这里给出朴素上界。
+    """
+    if noise_scale <= 0:
+        return float('inf')
+    return float(sensitivity) / float(noise_scale)
 
 
 def MP_on_graph(round_user_params, item_num, latent_dim, topk_user_relation_graph, layers):

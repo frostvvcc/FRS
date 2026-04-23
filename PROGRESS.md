@@ -63,3 +63,52 @@
 - dp=0.01 的差分隐私噪声反而**提升** HR（+4.3%），起正则化作用
 
 **相关 commit**：本轮改动见 `git log --grep="week7"`。完整结果在 `WEEK7_8_REPORT.md` 和 `results/week7_8/`。
+
+---
+
+### 2026-04-22 — 毕设创新落地：双图"可信邻居"交集 + 软交集 + 完整矩阵
+
+**遇到的问题**
+
+1. **毕设描述与代码实现不一致**：任务书原文"**对于每个节点在两张图上分别筛选出其邻居，取两张图中都在邻居列表中的用户作为'可信邻居'**"是集合交集；但 `utils.py:select_topk_neighboehood` 实际做的是 `alpha * item_graph + (1-alpha) * mlp_graph` 加权融合 —— 先融合再筛选，与"分别筛选后取交集"数学完全不同。
+2. 历史序列长度 5 硬编码在 `data.py:_get_history`，无法参数化做消融。
+3. 注意力模块（`LightweightAttention`）只是单点积，容易过拟合；但没有对照实验说明它的实际贡献。
+4. 没有中心化 NCF 基线作为性能上界，所有联邦指标缺乏参考系。
+5. 没有朴素的 ε 预算换算，差分隐私只能报告 Laplace scale。
+6. 通讯成本、假邻居率等毕设声称"可量化"的指标从未真正统计过。
+
+**如何解决**
+
+1. `utils.py` 重写 `select_topk_neighboehood`，引入 `fusion ∈ {alpha, intersection, union, soft_intersection}`：
+   - `intersection`：严格交集（毕设原始设计）
+   - `soft_intersection`：交集边权重 β，单图独有边权重 (1-β)，β=1 退化为严格交集
+   - 保留 `alpha` 做向后兼容
+2. `data.py:SampleGenerator(history_len=...)` 参数化历史长度，`train.py --history_len N` 暴露
+3. 新增 `centralized_train.py` —— 用同一 MLP + 注意力做中心化训练，HR=0.6872 作为上界
+4. 新增 `utils.laplace_epsilon()`，train.py 输出 `epsilon_per_round / epsilon_total_naive`
+5. engine 每轮通过 `last_aggregate_stats` 暴露可信邻居数、假邻居率、孤立节点数；`last_round_upload_bytes` 记上传字节
+6. 新增 21 组实验矩阵（T/H/D/S/Z 五组），结果 JSON + summary + curves 全部落盘
+
+**实验关键发现（诚实报告）**
+
+1. **严格交集在 100k 上 HR=0.3998，显著差于并集 0.4677（-14%）**。毕设"降低假邻居即提升性能"的假设被数据否定。
+2. **75% 的邻居边是"假邻居"**（只被单张图认可）—— 这一统计本身是毕设贡献
+3. **软交集 β 与 HR 单调负相关**：β=0.5(=union) 最优，β=1.0(=strict) 最差；没有甜点 —— 强制信任权重一上升就损失性能
+4. **注意力模块贡献为负**：关掉注意力（H4）比 attn+len5（H1）涨 7.2%；加长历史（H2/H3）进一步劣化
+5. **小 DP 噪声 dp=0.005 (ε=200) 对严格交集 +6% HR**：起到正则化作用
+6. **联邦方案的"天花板"约为中心化 NCF 的 68%**（HR 0.4677 vs 0.6872）
+
+**如何沉淀为毕设论点**
+
+- 承认严格交集在本数据集上失效；将其作为**一个基线**而非"主推方法"
+- 主推 **soft_intersection 参数化机制**：β 给出可调的 trust-breadth 权衡曲线
+- 把"假邻居率 75%"作为**新颖的量化统计**加入报告（之前从未有人测过这个）
+- 把"ε=200 时 intersection + DP 仍可用"作为**隐私-效用折中**的操作点
+
+**以后如何避免**
+
+- **任务书 → 代码 一致性 review 必须做**。毕设开题描述的机制和实际实现偏差了半年没发现，是流程缺陷。建议每次动关键算法时回读一遍任务书的数学定义。
+- **关键的消融实验要第一时间补齐**：如果早有中心化 baseline + no_graph baseline，就不会一直以为"双图有增益"（实际持平）
+- **把"假设能改进"和"实际改进"分开汇报**。本轮很多改动是"符合毕设设计"但"实测没涨点"—— 这种诚实汇报比掩饰更有研究价值
+
+**相关 commit**：本轮改动见 `git log --grep="thesis"`。完整结果在 `THESIS_REPORT.md` 和 `results/thesis/`。

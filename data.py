@@ -50,25 +50,19 @@ class UserItemRatingDataset(Dataset):
 class SampleGenerator(object):
     """为神经协同过滤（NCF）模型构造训练、验证和测试数据集"""
 
-    def __init__(self, ratings):
+    def __init__(self, ratings, history_len: int = 5):
         """
         初始化 SampleGenerator
 
         参数:
             ratings: pandas.DataFrame，必须包含列 ['userId', 'itemId', 'rating', 'timestamp']
-        功能:
-            1. 检查输入 DataFrame 是否包含所需列
-            2. 通过 _binarize 将评分二值化（implicit feedback）
-            3. 生成用户集合和物品集合
-            4. 对每个用户构造负采样列表（negatives）
-            5. 进行 leave-one-out 划分，得到 train、val、test 三个子集
-        输出:
-            无（构造函数）
+            history_len: int，每个样本对应的历史物品序列长度（左侧 0 填充）
         """
         assert 'userId' in ratings.columns
         assert 'itemId' in ratings.columns
         assert 'rating' in ratings.columns
 
+        self.history_len = int(history_len)
         self.ratings = ratings
         # 将评分二值化：rating > 0 → 1.0，否则 0（隐式反馈）
         self.preprocess_ratings = self._binarize(ratings)
@@ -103,16 +97,15 @@ class SampleGenerator(object):
         return ratings
 
     def _get_history(self, user_id, target_item_id):
-        """🌟 新增：获取目标物品之前的 5 个历史物品序列"""
+        """获取目标物品之前的 history_len 个历史物品序列（左侧 0 padding）。"""
         hist = self.user_history_dict[user_id]
         try:
             idx = hist.index(target_item_id)
         except ValueError:
             idx = 0
-        # 取前面的 5 个元素
-        seq = hist[max(0, idx - 5): idx]
-        # Padding: 如果不够 5 个，前面用 0 补齐
-        seq = [0] * (5 - len(seq)) + seq
+        H = self.history_len
+        seq = hist[max(0, idx - H): idx]
+        seq = [0] * (H - len(seq)) + seq
         return seq
 
     def _binarize(self, ratings):

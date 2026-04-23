@@ -1,0 +1,41 @@
+Planned 17 experiments in results/thesis
+Dataset=100k  num_round=25  seed=42
+  [RUN]  T0_no_graph  mode=fed  args=['--graph_fusion', 'no_graph']
+  [DONE] T0_no_graph  (347.4s)
+  [RUN]  T1_item_only  mode=fed  args=['--graph_fusion', 'item_only']
+  [DONE] T1_item_only  (353.4s)
+  [RUN]  T2_interest_only  mode=fed  args=['--graph_fusion', 'interest_only']
+  [DONE] T2_interest_only  (353.9s)
+  [RUN]  T3_alpha_0.5  mode=fed  args=['--graph_fusion', 'alpha', '--alpha', '0.5']
+  [DONE] T3_alpha_0.5  (376.5s)
+  [RUN]  T4_union  mode=fed  args=['--graph_fusion', 'union']
+  [DONE] T4_union  (378.3s)
+  [RUN]  T5_intersection  mode=fed  args=['--graph_fusion', 'intersection']
+  [DONE] T5_intersection  (371.8s)
+  [RUN]  H1_attn_len5  mode=fed  args=['--history_len', '5', '--graph_fusion', 'intersection']
+  [DONE] H1_attn_len5  (373.9s)
+  [RUN]  H2_attn_len10  mode=fed  args=['--history_len', '10', '--graph_fusion', 'intersection']
+  [DONE] H2_attn_len10  (371.5s)
+  [RUN]  H3_attn_len20  mode=fed  args=['--history_len', '20', '--graph_fusion', 'intersection']
+  [DONE] H3_attn_len20  (632.4s)
+  [RUN]  H4_noattn_len5  mode=fed  args=['--no_attention', '--layers', '64,32,16,8', '--history_len', '5', '--graph_fusion', 'intersection']
+  [DONE] H4_noattn_len5  (319.9s)
+  [RUN]  H5_noattn_len20  mode=fed  args=['--no_attention', '--layers', '64,32,16,8', '--history_len', '20', '--graph_fusion', 'intersection']
+  [DONE] H5_noattn_len20  (424.9s)
+  [RUN]  D1_dp_0  mode=fed  args=['--graph_fusion', 'intersection', '--dp', '0.0']
+  [DONE] D1_dp_0  (349.5s)
+  [RUN]  D2_dp_0.005  mode=fed  args=['--graph_fusion', 'intersection', '--dp', '0.005']
+  [DONE] D2_dp_0.005  (354.8s)
+  [RUN]  D3_dp_0.01  mode=fed  args=['--graph_fusion', 'intersection', '--dp', '0.01']
+  [DONE] D3_dp_0.01  (358.6s)
+  [RUN]  D4_dp_0.05  mode=fed  args=['--graph_fusion', 'intersection', '--dp', '0.05']
+  [DONE] D4_dp_0.05  (349.4s)
+  [RUN]  D5_dp_0.1  mode=fed  args=['--graph_fusion', 'intersection', '--dp', '0.1']
+  [DONE] D5_dp_0.1  (360.4s)
+  [RUN]  Z_centralized  mode=centralized  args=[]
+  [DONE] Z_centralized  (278.5s)
+
+All runs finished in 105.9 min.
+  Wrote results/thesis/summary.csv
+  Wrote results/thesis/summary.md
+  Wrote results/thesis/curves.png
