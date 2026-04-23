@@ -1,0 +1,23 @@
+[RUN] M1_sim_intersection  ['--dataset', 'ml-1m', '--graph_fusion', 'intersection', '--graph_semantic', 'similarity']
+[DONE] M1_sim_intersection (5264.5s)
+[RUN] M1_sim_no_graph  ['--dataset', 'ml-1m', '--graph_fusion', 'no_graph', '--graph_semantic', 'similarity']
+[DONE] M1_sim_no_graph (4832.2s)
+[RUN] M1_sim_union  ['--dataset', 'ml-1m', '--graph_fusion', 'union', '--graph_semantic', 'similarity']
+[DONE] M1_sim_union (4412.0s)
+[RUN] M1_item_only  ['--dataset', 'ml-1m', '--graph_fusion', 'item_only', '--graph_semantic', 'similarity']
+[DONE] M1_item_only (3420.4s)
+[RUN] M1_int_dp_0.01  ['--dataset', 'ml-1m', '--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--dp', '0.01']
+[DONE] M1_int_dp_0.01 (3389.5s)
+[RUN] M_centralized  ['--dataset', 'ml-1m']
+[FAIL] M_centralized (1.2s)
+              [--lr LR] [--latent_dim LATENT_DIM]
+                            [--num_negative NUM_NEGATIVE]
+                            [--history_len HISTORY_LEN] [--layers LAYERS]
+                            [--no_attention] [--seed SEED]
+                            [--early_stop_patience EARLY_STOP_PATIENCE]
+                            [--metrics_json METRICS_JSON]
+                            [--result_tag RESULT_TAG]
+centralized_train.py: error: unrecognized arguments: --alias M_centralized
+
+
+Total 355.3 min

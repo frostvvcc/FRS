@@ -86,6 +86,20 @@ parser.add_argument('--graph_semantic', type=str, default='similarity',
                     help="图语义：similarity=新默认（值越大越相似）; distance=旧 bug 行为（复现用）")
 parser.add_argument('--history_len', type=int, default=5,
                     help="每个样本对应的历史物品序列长度（注意力 keys 长度）")
+parser.add_argument('--attention_type', type=str, default='single',
+                    choices=['single', 'multihead'],
+                    help="注意力类型：single=单点积（V1 默认）; multihead=多头+位置编码（V3 升级）")
+parser.add_argument('--num_heads', type=int, default=4,
+                    help="多头注意力头数（仅 attention_type=multihead 生效，须能整除 latent_dim）")
+parser.add_argument('--max_history_len', type=int, default=32,
+                    help="多头注意力位置编码的最大历史长度（需 >= --history_len）")
+parser.add_argument('--dp_delta', type=float, default=1e-5,
+                    help="差分隐私 δ 参数（advanced composition 计算使用）")
+parser.add_argument('--interest_type', type=str, default='user_emb',
+                    choices=['user_emb', 'fc_layer', 'both'],
+                    help="🌟 V3：兴趣向量编码类型 — user_emb=32 维（V1 默认）；"
+                         "fc_layer=用 fc_layers[0] 权重（~3072 维，与 item 图维度更平衡）；"
+                         "both=两者拼接（最丰富）")
 parser.add_argument('--lr_u', type=float, default=None,
                     help="直接指定用户 embedding 学习率（覆盖 lr_eta 公式）")
 parser.add_argument('--lr_i', type=float, default=None,
@@ -346,6 +360,12 @@ if config.get('metrics_json'):
         'epsilon_per_round': (None if config.get('dp', 0.0) <= 0 else 1.0 / float(config['dp'])),
         'epsilon_total_naive': (None if config.get('dp', 0.0) <= 0
                                 else float(len(hit_ratio_list)) / float(config['dp'])),
+        # 🌟 V3 严格 DP 分析：basic / advanced / RDP composition
+        'dp_composition': (None if config.get('dp', 0.0) <= 0
+                           else __import__('utils').dp_composition_bounds(
+                               1.0 / float(config['dp']),
+                               len(hit_ratio_list),
+                               config.get('dp_delta', 1e-5))),
         'config': {k: (v if isinstance(v, (int, float, str, bool, list)) or v is None else str(v))
                    for k, v in config.items()},
     }

@@ -1,0 +1,10 @@
+[RUN] I1_user_emb  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--interest_type', 'user_emb']
+[DONE] I1_user_emb (1280s)
+[RUN] I2_fc_layer  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--interest_type', 'fc_layer']
+[DONE] I2_fc_layer (1262s)
+[RUN] I3_both  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--interest_type', 'both']
+[DONE] I3_both (750s)
+[RUN] I4_fc_union  ['--graph_fusion', 'union', '--graph_semantic', 'similarity', '--interest_type', 'fc_layer']
+[DONE] I4_fc_union (654s)
+
+Total 65.8 min

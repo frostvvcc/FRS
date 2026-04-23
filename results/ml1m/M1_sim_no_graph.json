@@ -1,0 +1,200 @@
+{
+  "tag": "M1_sim_no_graph",
+  "alias": "M1_sim_no_graph",
+  "dataset": "ml-1m",
+  "num_round_requested": 15,
+  "num_round_actual": 15,
+  "best_round": 14,
+  "best_test_hr": 0.423841059602649,
+  "best_test_ndcg": 0.23049190600967207,
+  "best_val_hr": 0.43509933774834436,
+  "hr_list": [
+    0.11804635761589403,
+    0.11423841059602649,
+    0.12201986754966887,
+    0.1403973509933775,
+    0.1781456953642384,
+    0.22135761589403974,
+    0.275,
+    0.32350993377483445,
+    0.35413907284768215,
+    0.3850993377483444,
+    0.39602649006622515,
+    0.4140728476821192,
+    0.41721854304635764,
+    0.42185430463576157,
+    0.423841059602649
+  ],
+  "ndcg_list": [
+    0.05631856076119167,
+    0.05514294434148344,
+    0.06123896977250805,
+    0.07253547000711799,
+    0.09673139584118921,
+    0.12567571100994698,
+    0.15372626474188505,
+    0.1813738094040398,
+    0.1959305234749906,
+    0.21174887658572275,
+    0.2185775623130266,
+    0.22467770918113814,
+    0.22790137803226979,
+    0.23047999734969699,
+    0.23049190600967207
+  ],
+  "val_hr_list": [
+    0.10794701986754966,
+    0.11142384105960265,
+    0.12036423841059603,
+    0.1412251655629139,
+    0.1880794701986755,
+    0.22682119205298013,
+    0.281953642384106,
+    0.327317880794702,
+    0.36026490066225164,
+    0.3912251655629139,
+    0.4043046357615894,
+    0.41688741721854305,
+    0.4281456953642384,
+    0.4337748344370861,
+    0.43509933774834436
+  ],
+  "val_ndcg_list": [
+    0.051943508204896044,
+    0.05419340161364887,
+    0.061562890037977554,
+    0.07448549198944532,
+    0.10295711271141111,
+    0.1252288856024991,
+    0.1593813627897743,
+    0.18154520278520825,
+    0.19910450002157548,
+    0.2163894488892331,
+    0.22046327168916102,
+    0.22497553935494588,
+    0.2346638015393829,
+    0.23493199763223666,
+    0.23448390701679567
+  ],
+  "upload_bytes_per_round": [
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840,
+    2865955840
+  ],
+  "total_upload_bytes": 42989337600,
+  "aggregate_stats_per_round": [
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    },
+    {
+      "mode": "no_graph"
+    }
+  ],
+  "final_false_neighbor_ratio": 0.0,
+  "final_avg_trusted_neighbors": 0.0,
+  "final_isolated_nodes": 0,
+  "epsilon_per_round": null,
+  "epsilon_total_naive": null,
+  "dp_composition": null,
+  "config": {
+    "alias": "M1_sim_no_graph",
+    "clients_sample_ratio": 1,
+    "clients_sample_num": 0,
+    "num_round": 15,
+    "local_epoch": 1,
+    "neighborhood_size": 0,
+    "neighborhood_threshold": 1.0,
+    "mp_layers": 1,
+    "similarity_metric": "cosine",
+    "reg": 1.0,
+    "lr_eta": 80,
+    "batch_size": 256,
+    "optimizer": "sgd",
+    "lr": 0.1,
+    "dataset": "ml-1m",
+    "num_users": 6040,
+    "num_items": 3706,
+    "latent_dim": 32,
+    "num_negative": 12,
+    "layers": [
+      96,
+      32,
+      16,
+      8
+    ],
+    "l2_regularization": 0.0,
+    "dp": 0.0,
+    "use_cuda": false,
+    "device_id": 0,
+    "model_dir": "checkpoints/{}_Epoch{}_HR{:.4f}_NDCG{:.4f}.model",
+    "alpha": 0.5,
+    "no_attention": false,
+    "no_graph": false,
+    "graph_fusion": "no_graph",
+    "graph_semantic": "similarity",
+    "history_len": 5,
+    "attention_type": "single",
+    "num_heads": 4,
+    "max_history_len": 32,
+    "dp_delta": 1e-05,
+    "interest_type": "user_emb",
+    "lr_u": null,
+    "lr_i": null,
+    "seed": 42,
+    "early_stop_patience": 4,
+    "metrics_json": "results/ml1m/M1_sim_no_graph.json",
+    "result_tag": "M1_sim_no_graph",
+    "use_attention": true
+  }
+}

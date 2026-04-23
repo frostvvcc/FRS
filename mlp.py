@@ -3,7 +3,10 @@ from engine import Engine
 from utils import use_cuda, resume_checkpoint
 import torch.nn.functional as F
 
+
 class LightweightAttention(torch.nn.Module):
+    """单点积注意力（V1 默认）。"""
+
     def __init__(self, latent_dim):
         super(LightweightAttention, self).__init__()
         self.scale = latent_dim ** 0.5
@@ -13,6 +16,51 @@ class LightweightAttention(torch.nn.Module):
         weights = F.softmax(scores, dim=-1)
         attended_value = torch.bmm(weights, keys)
         return attended_value.squeeze(1)
+
+
+class MultiHeadAttention(torch.nn.Module):
+    """🌟 V3 升级：多头注意力 + 可学习位置编码，解决短历史下注意力为负贡献的问题。
+
+    - 多头：并行 num_heads 条独立注意力通道，拼接后线性映射回 latent_dim
+    - 位置编码：给历史序列的每个位置加一个可学习向量，让模型感知"时序"
+    """
+
+    def __init__(self, latent_dim: int, num_heads: int = 4, max_history_len: int = 32):
+        super().__init__()
+        assert latent_dim % num_heads == 0, \
+            f"latent_dim ({latent_dim}) 必须能被 num_heads ({num_heads}) 整除"
+        self.latent_dim = latent_dim
+        self.num_heads = num_heads
+        self.head_dim = latent_dim // num_heads
+        self.scale = self.head_dim ** 0.5
+
+        # Q / K / V 各自的投影矩阵
+        self.q_proj = torch.nn.Linear(latent_dim, latent_dim)
+        self.k_proj = torch.nn.Linear(latent_dim, latent_dim)
+        self.v_proj = torch.nn.Linear(latent_dim, latent_dim)
+        self.out_proj = torch.nn.Linear(latent_dim, latent_dim)
+
+        # 可学习位置编码：[max_history_len, latent_dim]
+        self.pos_embedding = torch.nn.Parameter(
+            torch.randn(max_history_len, latent_dim) * 0.02
+        )
+
+    def forward(self, query, keys):
+        # query: [B, 1, D], keys: [B, L, D]
+        B, L, D = keys.shape
+        # 为每个 key 加位置编码（仅截取前 L 个位置）
+        keys_pos = keys + self.pos_embedding[:L].unsqueeze(0)
+
+        Q = self.q_proj(query).view(B, 1, self.num_heads, self.head_dim).transpose(1, 2)
+        K = self.k_proj(keys_pos).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+        V = self.v_proj(keys_pos).view(B, L, self.num_heads, self.head_dim).transpose(1, 2)
+
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale  # [B, H, 1, L]
+        w = F.softmax(scores, dim=-1)
+        out = torch.matmul(w, V)  # [B, H, 1, head_dim]
+        out = out.transpose(1, 2).contiguous().view(B, 1, D)
+        out = self.out_proj(out).squeeze(1)  # [B, D]
+        return out
 
 class MLP(torch.nn.Module):
     """多层感知机（MLP）模型，用于预测给定用户-物品对的评分概率（隐式反馈）
@@ -58,8 +106,16 @@ class MLP(torch.nn.Module):
         self.embedding_user = torch.nn.Embedding(num_embeddings=1, embedding_dim=self.latent_dim)
         # 物品 embedding：大小为 (num_items, latent_dim)
         self.embedding_item = torch.nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.latent_dim)
-        # 🌟 必须加这一句！把注意力雷达装上去！
-        self.attention_layer = LightweightAttention(self.latent_dim)
+        # 注意力模块：根据 config['attention_type'] 选择单点积 or 多头
+        att_type = config.get('attention_type', 'single').lower()
+        if att_type in ('multihead', 'multi', 'multi_head'):
+            self.attention_layer = MultiHeadAttention(
+                latent_dim=self.latent_dim,
+                num_heads=int(config.get('num_heads', 4)),
+                max_history_len=int(config.get('max_history_len', 32)),
+            )
+        else:
+            self.attention_layer = LightweightAttention(self.latent_dim)
         # MLP 隐藏层
         self.fc_layers = torch.nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(config['layers'][:-1], config['layers'][1:])):

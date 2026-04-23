@@ -1,0 +1,17 @@
+[Epoch 00] train_loss=0.1952 test_HR=0.5437 NDCG=0.3150 val_HR=0.5811
+[Epoch 01] train_loss=0.1640 test_HR=0.6195 NDCG=0.3845 val_HR=0.6565
+[Epoch 02] train_loss=0.1500 test_HR=0.6657 NDCG=0.4278 val_HR=0.7149
+[Epoch 03] train_loss=0.1398 test_HR=0.6955 NDCG=0.4565 val_HR=0.7377
+[Epoch 04] train_loss=0.1330 test_HR=0.7126 NDCG=0.4723 val_HR=0.7550
+[Epoch 05] train_loss=0.1285 test_HR=0.7205 NDCG=0.4809 val_HR=0.7677
+[Epoch 06] train_loss=0.1250 test_HR=0.7305 NDCG=0.4907 val_HR=0.7770
+[Epoch 07] train_loss=0.1224 test_HR=0.7351 NDCG=0.4942 val_HR=0.7863
+[Epoch 08] train_loss=0.1203 test_HR=0.7414 NDCG=0.5018 val_HR=0.7874
+[Epoch 09] train_loss=0.1184 test_HR=0.7425 NDCG=0.5026 val_HR=0.7886
+[Epoch 10] train_loss=0.1167 test_HR=0.7470 NDCG=0.5089 val_HR=0.7930
+[Epoch 11] train_loss=0.1153 test_HR=0.7493 NDCG=0.5110 val_HR=0.7934
+[Epoch 12] train_loss=0.1141 test_HR=0.7556 NDCG=0.5148 val_HR=0.7987
+[Epoch 13] train_loss=0.1130 test_HR=0.7536 NDCG=0.5196 val_HR=0.8003
+[Epoch 14] train_loss=0.1121 test_HR=0.7545 NDCG=0.5204 val_HR=0.8050
+Best test HR=0.7545 NDCG=0.5204 at epoch 14
+Metrics JSON: results/ml1m/M_centralized.json

@@ -45,7 +45,17 @@ pip install -r requirements.txt
 ## 快速开始
 
 ```bash
-# 严格双图交集（毕设默认）
+# 🌟 V3 最佳配置（多头注意力 + both 兴趣编码 + 严格交集）
+python train.py --dataset 100k --num_round 25 \
+    --graph_fusion intersection --graph_semantic similarity \
+    --attention_type multihead --num_heads 2 --history_len 5 \
+    --max_history_len 20 --interest_type both \
+    --dp 0.01 \
+    --seed 42 --early_stop_patience 5 \
+    --metrics_json results/best_v3.json
+# 预期：HR@10 ≈ 0.517, NDCG@10 ≈ 0.325, 假邻居率 ≈ 0.37, ε_RDP ≈ 300
+
+# 严格双图交集（V1 基线）
 python train.py --dataset 100k --num_round 25 \
     --graph_fusion intersection \
     --seed 42 --metrics_json results/demo.json
@@ -76,7 +86,11 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 | `--history_len` | 5 | 🌟 历史序列长度（注意力 keys 长度） |
 | `--no_attention` | off | 关闭历史序列注意力 |
 | `--graph_semantic` | `similarity` | 🌟 V2：`similarity`=新默认（值越大越相似）；`distance`=旧 bug 行为（复现用） |
-| `--dp` | 0.0 | Laplace 噪声 scale（ε = 1/dp） |
+| `--attention_type` | `single` | 🌟 V3：`single`=旧单头；`multihead`=多头 + 可学习位置编码 |
+| `--num_heads` | 2 | 多头注意力头数（仅 `--attention_type multihead` 生效） |
+| `--max_history_len` | 20 | 位置编码最大长度（应 ≥ `--history_len`） |
+| `--interest_type` | `user_emb` | 🌟 V3：`user_emb`（32 维）/`fc_layer`（~3072 维）/`both`（~3104 维） |
+| `--dp` | 0.0 | Laplace 噪声 scale（ε_naive = 1/dp；严格 ε 在 metrics_json 中） |
 | `--optimizer` | `sgd` | 可选 `sgd` / `adam` / `adamw` |
 | `--lr_u` / `--lr_i` | - | 直接指定用户/物品 embedding 学习率 |
 | `--lr_eta` | 80 | 旧的学习率缩放公式（见 WEEK7_8_REPORT） |

@@ -25,6 +25,7 @@ python tests/test_smoke.py
 | `tests/test_engine_features.py` | `--no_graph` 退化为均值聚合；`--optimizer adam` / `--lr_u` / `--lr_i` 覆写生效 |
 | `tests/test_trusted_neighbors.py` | 🌟 毕设创新：可信邻居交集/并集筛选、假邻居率统计、Laplace ε 计算、孤立节点回退 |
 | `tests/test_similarity_fix.py` | 🌟 V2：cosine 语义修复（similarity vs distance）、product 融合、rank_intersection |
+| `tests/test_v3_enhancements.py` | 🌟 V3：MultiHeadAttention 形状与梯度、`--interest_type` 三档、DP `advanced_composition_epsilon` / `laplace_rdp_epsilon` |
 
 ## 开发约定
 

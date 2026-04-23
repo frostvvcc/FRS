@@ -443,13 +443,86 @@ def select_topk_neighboehood(item_graph, mlp_graph, neighborhood_size, neighborh
 def laplace_epsilon(noise_scale, sensitivity=1.0):
     """把 Laplace 噪声 scale b 换算为 (ε)-DP 预算：ε = sensitivity / b。
 
-    假设单次查询 sensitivity=1（归一化后的 embedding 上传）。
-    组合到 T 轮基础顺序组合：ε_total ≈ T × ε_per_round。
-    精确 RDP/moments accountant 需要额外实现，这里给出朴素上界。
+    Laplace 机制在一次查询上提供 (ε, 0)-DP。
     """
     if noise_scale <= 0:
         return float('inf')
     return float(sensitivity) / float(noise_scale)
+
+
+def dp_composition_bounds(per_round_eps, T, delta=1e-5):
+    """🌟 V3 严格 DP 分析：返回 T 轮组合后的 ε 上界（三种方法）。
+
+    1. 朴素顺序组合 (Basic Composition, Dwork 2006)：
+       ε_naive = T × ε
+       提供 (T×ε, 0)-DP。
+
+    2. Advanced Composition (Dwork, Rothblum & Vadhan 2010)：
+       ε_adv = sqrt(2 T ln(1/δ)) × ε + T × ε × (e^ε − 1)
+       提供 (ε_adv, δ)-DP，当 T 较大时远紧于朴素。
+
+    3. Rényi DP + 转换上界（Mironov 2017）：
+       Laplace 机制的 RDP 曲线：
+           RDP(α) = (1/(α−1)) × ln(α/(2α−1) × exp((α−1)/b) + (α−1)/(2α−1) × exp(−α/b))
+       取 α ∈ {2..64} 扫一遍后，转回 (ε, δ)：
+           ε_rdp = min_α [ RDP(α) + ln(1/δ)/(α−1) ]
+
+    返回 dict，含三个估计。
+    """
+    import math
+
+    if per_round_eps <= 0 or per_round_eps == float('inf'):
+        return {'naive': float('inf'), 'advanced': float('inf'), 'rdp': float('inf'),
+                'tightest': float('inf'), 'method': 'none'}
+
+    T = int(T)
+    if T <= 0:
+        return {'naive': 0.0, 'advanced': 0.0, 'rdp': 0.0, 'tightest': 0.0, 'method': 'none'}
+
+    eps = float(per_round_eps)
+
+    # 1. Basic composition
+    eps_naive = T * eps
+
+    # 2. Advanced composition
+    eps_advanced = math.sqrt(2 * T * math.log(1.0 / delta)) * eps + \
+                   T * eps * (math.exp(eps) - 1)
+
+    # 3. RDP 分析 (Laplace 机制, scale b = sensitivity / eps)
+    b = 1.0 / eps  # 假定 sensitivity = 1
+    best_rdp = float('inf')
+    best_alpha = None
+    for alpha in [2, 4, 8, 16, 32, 64, 128]:
+        # Laplace RDP(α)（Mironov 2017, Proposition 6）
+        # RDP(α) = (1/(α-1)) * log((α / (2α-1)) * exp((α-1)/b) + ((α-1)/(2α-1)) * exp(-α/b))
+        try:
+            term = (alpha / (2 * alpha - 1)) * math.exp((alpha - 1) / b) + \
+                   ((alpha - 1) / (2 * alpha - 1)) * math.exp(-alpha / b)
+            rdp_alpha = math.log(term) / (alpha - 1)
+            # T 轮组合：T × RDP(α)；再转为 (ε, δ)-DP
+            eps_candidate = T * rdp_alpha + math.log(1.0 / delta) / (alpha - 1)
+            if eps_candidate < best_rdp:
+                best_rdp = eps_candidate
+                best_alpha = alpha
+        except (OverflowError, ValueError):
+            continue
+
+    tightest = min(eps_naive, eps_advanced, best_rdp)
+    if tightest == eps_naive:
+        method = 'naive'
+    elif tightest == eps_advanced:
+        method = 'advanced'
+    else:
+        method = f'rdp(α={best_alpha})'
+
+    return {
+        'naive': eps_naive,
+        'advanced': eps_advanced,
+        'rdp': best_rdp,
+        'tightest': tightest,
+        'method': method,
+        'delta': delta,
+    }
 
 
 def MP_on_graph(round_user_params, item_num, latent_dim, topk_user_relation_graph, layers):

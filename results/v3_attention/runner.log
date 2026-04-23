@@ -1,0 +1,18 @@
+[RUN] A1_single_len5  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '5', '--attention_type', 'single']
+[DONE] A1_single_len5 (434s)
+[RUN] A1_single_len10  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '10', '--attention_type', 'single']
+[DONE] A1_single_len10 (495s)
+[RUN] A1_single_len20  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '20', '--attention_type', 'single']
+[DONE] A1_single_len20 (823s)
+[RUN] A2_mha2_len5  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '5', '--attention_type', 'multihead', '--num_heads', '2', '--max_history_len', '20']
+[DONE] A2_mha2_len5 (792s)
+[RUN] A2_mha4_len10  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '10', '--attention_type', 'multihead', '--num_heads', '4', '--max_history_len', '20']
+[DONE] A2_mha4_len10 (898s)
+[RUN] A2_mha4_len20  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '20', '--attention_type', 'multihead', '--num_heads', '4', '--max_history_len', '32']
+[DONE] A2_mha4_len20 (823s)
+[RUN] A2_mha8_len20  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '20', '--attention_type', 'multihead', '--num_heads', '8', '--max_history_len', '32']
+[DONE] A2_mha8_len20 (867s)
+[RUN] A0_no_attn_len5  ['--graph_fusion', 'intersection', '--graph_semantic', 'similarity', '--history_len', '5', '--no_attention', '--layers', '64,32,16,8']
+[DONE] A0_no_attn_len5 (436s)
+
+Total 92.8 min

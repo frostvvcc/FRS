@@ -396,10 +396,22 @@ class Engine(object):
                 self.client_model_params[user]['embedding_item.weight']
             )
 
-            # 🌟 修正：严格按照论文，上传"长期兴趣特征向量"用于建第二张图！
-            round_participant_params[user]['interest_params'] = copy.deepcopy(
-                self.client_model_params[user]['embedding_user.weight'].data.cpu()
-            )
+            # 🌟 V3 兴趣编码升级：可选使用更丰富的兴趣特征以降低假邻居率
+            #   'user_emb'  — [1, latent_dim]，V1 默认（32 维）
+            #   'fc_layer'  — fc_layers[0].weight [layer0_out, layer0_in]（例如 32×96 ≈ 3072 维）
+            #                 捕捉"用户如何整合特征"，与 item embedding 维度更接近（减小维度差）
+            #   'both'      — 拼接 user_emb + fc_layer（最丰富）
+            interest_type = self.config.get('interest_type', 'user_emb').lower()
+            user_emb = self.client_model_params[user]['embedding_user.weight'].data.cpu()
+            if interest_type == 'fc_layer':
+                fc_w = self.client_model_params[user]['fc_layers.0.weight'].data.cpu().flatten()
+                interest_feat = fc_w.unsqueeze(0)  # [1, D]
+            elif interest_type == 'both':
+                fc_w = self.client_model_params[user]['fc_layers.0.weight'].data.cpu().flatten()
+                interest_feat = torch.cat([user_emb.flatten(), fc_w]).unsqueeze(0)
+            else:  # 'user_emb'（默认，兼容 V1）
+                interest_feat = user_emb
+            round_participant_params[user]['interest_params'] = copy.deepcopy(interest_feat)
 
             # 确保 dp_value > 0
             dp_value = max(self.config['dp'], 1e-6)
