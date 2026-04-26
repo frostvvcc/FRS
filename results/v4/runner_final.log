@@ -1,0 +1,14 @@
+[RUN] F1_r0.01_mp2_lep2  (reg=0.01 + mp=2 + lep=2, seed=42)
+[DONE] F1_r0.01_mp2_lep2 (1010.1s)
+[RUN] F2_r0.05_mp2_lep3  (reg=0.05 + mp=2 + lep=3, seed=42)
+[DONE] F2_r0.05_mp2_lep3 (469.1s)
+[RUN] F3_r0.1_mp2_lep3  (reg=0.1 + mp=2 + lep=3, seed=42)
+[DONE] F3_r0.1_mp2_lep3 (1697.2s)
+[RUN] S1_C4_seed0  (C4 seed=0, seed=0)
+[DONE] S1_C4_seed0 (1187.9s)
+[RUN] S2_C4_seed1  (C4 seed=1, seed=1)
+[DONE] S2_C4_seed1 (1120.5s)
+[RUN] S3_C4_seed7  (C4 seed=7, seed=7)
+[DONE] S3_C4_seed7 (1199.8s)
+
+Total 111.4 min

@@ -1,0 +1,16 @@
+[RUN] XR1_reg_0.05  (V3 + reg=0.05)
+[DONE] XR1_reg_0.05 (677.3s)
+[RUN] XR2_reg_0.01  (V3 + reg=0.01)
+[DONE] XR2_reg_0.01 (649.2s)
+[RUN] XR3_reg_0.0  (V3 + reg=0)
+[DONE] XR3_reg_0.0 (699.6s)
+[RUN] C1_r0.1_mp2  (reg=0.1 + mp=2)
+[DONE] C1_r0.1_mp2 (700.7s)
+[RUN] C2_r0.1_mp2_lep2  (reg=0.1 + mp=2 + lep=2)
+[DONE] C2_r0.1_mp2_lep2 (1214.6s)
+[RUN] C3_r0.05_mp2  (reg=0.05 + mp=2)
+[DONE] C3_r0.05_mp2 (714.0s)
+[RUN] C4_r0.05_mp2_lep2  (reg=0.05 + mp=2 + lep=2)
+[DONE] C4_r0.05_mp2_lep2 (1074.7s)
+
+Total 95.5 min

@@ -1,0 +1,21 @@
+Planned 9 experiments, num_round=30
+[RUN] Q1_v3_mp2  (V3 + mp_layers=2)
+[DONE] Q1_v3_mp2 (646.7s)
+[RUN] Q2_v3_mp3  (V3 + mp_layers=3)
+[DONE] Q2_v3_mp3 (706.0s)
+[RUN] R1_reg_0.1  (V3 + reg=0.1)
+[DONE] R1_reg_0.1 (672.9s)
+[RUN] R2_reg_0.3  (V3 + reg=0.3)
+[DONE] R2_reg_0.3 (656.0s)
+[RUN] R3_reg_0.5  (V3 + reg=0.5)
+[DONE] R3_reg_0.5 (693.9s)
+[RUN] L1_lep_2  (V3 + local_epoch=2)
+[DONE] L1_lep_2 (1123.1s)
+[RUN] L2_lep_3  (V3 + local_epoch=3)
+[DONE] L2_lep_3 (1694.5s)
+[RUN] N1_neg_8  (V3 + num_negative=8)
+[DONE] N1_neg_8 (604.1s)
+[RUN] N2_neg_20  (V3 + num_negative=20)
+[DONE] N2_neg_20 (1014.1s)
+
+Total 130.2 min

@@ -45,7 +45,19 @@ pip install -r requirements.txt
 ## 快速开始
 
 ```bash
-# 🌟 V3 最佳配置（多头注意力 + both 兴趣编码 + 严格交集）
+# 🚀 V4 最佳配置（毕设最终版，反超中心化 NCF）
+python train.py --dataset 100k --num_round 30 \
+    --graph_fusion intersection --graph_semantic similarity \
+    --attention_type multihead --num_heads 2 --history_len 5 \
+    --max_history_len 20 --interest_type both \
+    --dp 0.01 \
+    --reg 0.01 --mp_layers 2 --local_epoch 2 \
+    --seed 42 --early_stop_patience 6 \
+    --metrics_json results/best_v4.json
+# 预期：HR@10 ≈ 0.775, NDCG@10 ≈ 0.487
+# 相对中心化（HR=0.6872, NDCG=0.4110）：113% HR, 118% NDCG
+
+# V3 最佳配置（多头注意力 + both 兴趣编码 + 严格交集）—— 保留作为对照
 python train.py --dataset 100k --num_round 25 \
     --graph_fusion intersection --graph_semantic similarity \
     --attention_type multihead --num_heads 2 --history_len 5 \
@@ -53,7 +65,7 @@ python train.py --dataset 100k --num_round 25 \
     --dp 0.01 \
     --seed 42 --early_stop_patience 5 \
     --metrics_json results/best_v3.json
-# 预期：HR@10 ≈ 0.517, NDCG@10 ≈ 0.325, 假邻居率 ≈ 0.37, ε_RDP ≈ 300
+# 预期：HR@10 ≈ 0.517, NDCG@10 ≈ 0.325
 
 # 严格双图交集（V1 基线）
 python train.py --dataset 100k --num_round 25 \
