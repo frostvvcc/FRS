@@ -24,7 +24,7 @@ def main():
     p.add_argument("--num_round", type=int, default=20)
     p.add_argument("--early_stop", type=int, default=5)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--out_dir", default="results/v3_interest")
+    p.add_argument("--out_dir", default="results/exp5_interest")
     p.add_argument("--dry_run", action="store_true")
     args = p.parse_args()
 

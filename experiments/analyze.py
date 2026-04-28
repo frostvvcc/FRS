@@ -1,7 +1,7 @@
-"""读入 results/week7_8/*.json，生成可粘贴到报告的 markdown 分析。
+"""读入 results/exp1_baseline_hparams/*.json，生成可粘贴到报告的 markdown 分析。
 
 用法:
-    python experiments/analyze.py --dir results/week7_8
+    python experiments/analyze.py --dir results/exp1_baseline_hparams
 """
 
 from __future__ import annotations
@@ -89,7 +89,7 @@ def analyze(items: list[dict]) -> str:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dir", default="results/week7_8")
+    p.add_argument("--dir", default="results/exp1_baseline_hparams")
     p.add_argument("--out", default=None,
                    help="输出 markdown 路径；默认打印到 stdout")
     args = p.parse_args()

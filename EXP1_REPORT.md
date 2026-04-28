@@ -3,7 +3,7 @@
 > 第 7 周：开展对比实验，验证双图对比策略对协同效率的提升，调整超参数以优化个性化推荐准确性
 > 第 8 周：对设计进行测试和验证，收集详细的实验数据和结果
 
-_数据由 `experiments/run_week7_8.py` 在 100k 上执行 23 组实验生成（总耗时 106.6 min，CPU）。全部实验固定 `seed=42, num_round=20, early_stop_patience=5`。所有原始 JSON 在 `results/week7_8/`。_
+_数据由 `experiments/run_exp1_baseline_hparams.py` 在 100k 上执行 23 组实验生成（总耗时 106.6 min，CPU）。全部实验固定 `seed=42, num_round=20, early_stop_patience=5`。所有原始 JSON 在 `results/exp1_baseline_hparams/`。_
 
 ---
 
@@ -47,7 +47,7 @@ _数据由 `experiments/run_week7_8.py` 在 100k 上执行 23 组实验生成（
 | `engine.py` | `fed_evaluate` 去掉 per-user `deepcopy(self.model)` | 性能优化，语义等价 |
 | `train.py` | 新增 `--seed --early_stop_patience --metrics_json --result_tag` | 可复现 + 结构化结果 |
 | `train.py` | 设置 `random/numpy/torch` 三处种子 | 可复现 |
-| `experiments/run_week7_8.py` | 新增，驱动 23 组实验 | 矩阵自动化 |
+| `experiments/run_exp1_baseline_hparams.py` | 新增，驱动 23 组实验 | 矩阵自动化 |
 | `experiments/analyze.py` | 新增，按组汇总 + 极差统计 | 分析输出 |
 | `tests/test_engine_features.py` | 新增，3 个测试覆盖 no_graph / Adam / lr_u lr_i 覆写 | 回归保障 |
 
@@ -81,7 +81,7 @@ _数据由 `experiments/run_week7_8.py` 在 100k 上执行 23 组实验生成（
 
 > 说明：`A3/B4/C1/E1/F1` 全是同配置（默认），结果严格相同（0.4189 / 0.2181 / round 17），验证 `seed=42` 的可复现性。
 
-完整分组明细见 `results/week7_8/analysis.md`，学习曲线见 `results/week7_8/curves.png`。
+完整分组明细见 `results/exp1_baseline_hparams/analysis.md`，学习曲线见 `results/exp1_baseline_hparams/curves.png`。
 
 ---
 
@@ -212,7 +212,7 @@ _数据由 `experiments/run_week7_8.py` 在 100k 上执行 23 组实验生成（
 
 1. **测试**：新增 `tests/test_engine_features.py`（3 个用例），总计 11 个单元测试全绿
 2. **验证**：一项关键 bug 通过对照实验暴露 —— 用户原 A1 "完整模型" HR=0.1424 vs 本报告同配置 C1=0.4189，2.94× 差距全部归因于 `engine.py:301-318` 的缩进 bug
-3. **数据**：23 组实验完整 JSON + CSV + 分组 markdown + 学习曲线 PNG，全部在 `results/week7_8/`
+3. **数据**：23 组实验完整 JSON + CSV + 分组 markdown + 学习曲线 PNG，全部在 `results/exp1_baseline_hparams/`
 
 **推荐的新默认配置**：
 
@@ -231,26 +231,26 @@ python train.py --dataset ml-1m --num_round 30 \
 
 ```bash
 # 一次跑全部矩阵
-python experiments/run_week7_8.py --dataset 100k --num_round 20 --early_stop 5
+python experiments/run_exp1_baseline_hparams.py --dataset 100k --num_round 20 --early_stop 5
 
 # 只跑某一组
-python experiments/run_week7_8.py --only A              # 双图 6 组
-python experiments/run_week7_8.py --only B              # 邻居 5 组
-python experiments/run_week7_8.py --only "A,E"          # 组合过滤
+python experiments/run_exp1_baseline_hparams.py --only A              # 双图 6 组
+python experiments/run_exp1_baseline_hparams.py --only B              # 邻居 5 组
+python experiments/run_exp1_baseline_hparams.py --only "A,E"          # 组合过滤
 
 # dry-run 查看命令
-python experiments/run_week7_8.py --dry_run
+python experiments/run_exp1_baseline_hparams.py --dry_run
 
 # 生成分析 markdown
-python experiments/analyze.py --dir results/week7_8 --out results/week7_8/analysis.md
+python experiments/analyze.py --dir results/exp1_baseline_hparams --out results/exp1_baseline_hparams/analysis.md
 ```
 
 输出产物：
-- `results/week7_8/<tag>.json` — 每实验全部 HR/NDCG 轨迹
-- `results/week7_8/summary.csv` / `summary.md` — 简表
-- `results/week7_8/analysis.md` — 分组排名 + 极差
-- `results/week7_8/curves.png` — 分组学习曲线
-- `results/week7_8/runner.log` — 每实验墙钟耗时
+- `results/exp1_baseline_hparams/<tag>.json` — 每实验全部 HR/NDCG 轨迹
+- `results/exp1_baseline_hparams/summary.csv` / `summary.md` — 简表
+- `results/exp1_baseline_hparams/analysis.md` — 分组排名 + 极差
+- `results/exp1_baseline_hparams/curves.png` — 分组学习曲线
+- `results/exp1_baseline_hparams/runner.log` — 每实验墙钟耗时
 
 ## 附录：关键文件位置
 
@@ -260,4 +260,4 @@ python experiments/analyze.py --dir results/week7_8 --out results/week7_8/analys
 | `engine.py:145-165` | `aggregate_clients_params` 中的 `no_graph` 退化分支 |
 | `engine.py:265-295` | 三个优化器构造，支持 SGD/Adam/AdamW + lr 覆写 |
 | `train.py:78-92` | 种子、CLI 旋钮、`--metrics_json` |
-| `experiments/run_week7_8.py:22-78` | 实验矩阵定义 |
+| `experiments/run_exp1_baseline_hparams.py:22-78` | 实验矩阵定义 |

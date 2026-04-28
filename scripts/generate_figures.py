@@ -233,7 +233,7 @@ def fig_improvement_trajectory():
 
 
 # ============================================================
-# Fig 5.2 双图融合策略对比 (V2 矩阵 16 组)
+# Fig 5.2 双图融合策略对比 (实验三 cosine 修复对照 16 组)
 # ============================================================
 def fig_fusion_comparison():
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
@@ -274,7 +274,7 @@ def fig_fusion_comparison():
 
 
 # ============================================================
-# Fig 5.3 多头注意力增益分析 (V3 注意力矩阵 8 组)
+# Fig 5.3 多头注意力增益分析 (实验四 注意力机制对照 8 组)
 # ============================================================
 def fig_attention_gain():
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
@@ -365,7 +365,7 @@ def fig_interest_encoding():
 
 
 # ============================================================
-# Fig 5.5 V4 三大杠杆扫描结果
+# Fig 5.5 实验七 三大杠杆扫描结果
 # ============================================================
 def fig_v4_three_levers():
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -409,7 +409,7 @@ def fig_v4_three_levers():
     axes[2].legend(fontsize=10)
     axes[2].grid(True, alpha=0.3)
 
-    fig.suptitle('图 5.5 V4 阶段三大超参数杠杆的独立扫描结果', fontsize=13, y=1.02)
+    fig.suptitle('图 5.5 实验七三大超参数杠杆的独立扫描结果', fontsize=13, y=1.02)
     plt.tight_layout()
     plt.savefig(f'{OUT}/fig_5_5_v4_three_levers.png', bbox_inches='tight')
     plt.close()
@@ -417,7 +417,7 @@ def fig_v4_three_levers():
 
 
 # ============================================================
-# Fig 5.6 V4 反超中心化 + 三杠杆组合贡献
+# Fig 5.6 实验七 反超中心化 + 三杠杆组合贡献
 # ============================================================
 def fig_v4_combination():
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
@@ -467,7 +467,7 @@ def fig_v4_combination():
     axes[1].set_ylim(0, 1.0)
     axes[1].grid(axis='y', alpha=0.3)
 
-    fig.suptitle('图 5.6 V4 三大杠杆组合贡献与联邦反超中心化', fontsize=13, y=1.02)
+    fig.suptitle('图 5.6 实验七三大杠杆组合贡献与联邦反超中心化', fontsize=13, y=1.02)
     plt.tight_layout()
     plt.savefig(f'{OUT}/fig_5_6_v4_combination.png', bbox_inches='tight')
     plt.close()
@@ -587,8 +587,8 @@ def fig_ml1m():
 # ============================================================
 def fig_fake_neighbor_evolution():
     fig, ax = plt.subplots(figsize=(11, 5.5))
-    versions = ['V1\n缩进 bug 修复', 'V1.5\n双图加权融合', 'V2 cosine 修复\n+ intersection',
-                'V3 多头注意力', 'V3 富兴趣编码\n(both 模式)', 'V4 终极配置']
+    versions = ['V1\n缩进修复', 'V1.5\n双图加权融合', 'V2\ncosine 修复\n+intersection',
+                'V3.1\n多头注意力', 'V3.2\n富兴趣编码\n(both)', 'V4\n超参终极调优']
     fake = [None, 71, 46, 45, 34, 34]
     hr = [0.4189, 0.4350, 0.5080, 0.5133, 0.5175, 0.7752]
 
@@ -688,8 +688,8 @@ def fig_privacy_budget():
 def fig_experiment_overview():
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
 
-    batches = ['第7-8周\n超参基础', '毕设主矩阵\n双图融合', 'V2\ncosine 修复', 'V3\n注意力',
-               'V3\n兴趣编码', 'V3\nml-1m', 'V4\n超参扫描']
+    batches = ['实验一\n基础超参对照', '实验二\n双图融合矩阵', '实验三\ncosine 修复对照', '实验四\n注意力机制对照',
+               '实验五\n兴趣编码对照', '实验六\nml-1m 大数据集', '实验七\n超参终极调优']
     counts = [23, 25, 16, 8, 4, 6, 22]
     colors = plt.cm.viridis(np.linspace(0.15, 0.85, len(batches)))
 

@@ -1,11 +1,11 @@
 """第 7-8 周实验驱动脚本。
 
 用法：
-    python experiments/run_week7_8.py --dataset 100k --num_round 25 \
-        --out_dir results/week7_8 [--only GROUP] [--dry_run]
+    python experiments/run_exp1_baseline_hparams.py --dataset 100k --num_round 25 \
+        --out_dir results/exp1_baseline_hparams [--only GROUP] [--dry_run]
 
 输出：
-    results/week7_8/
+    results/exp1_baseline_hparams/
       ├── <tag>.json          每个实验的完整 metrics（hr_list, ndcg_list 等）
       ├── summary.csv         所有实验的关键指标汇总
       ├── summary.md          Markdown 表格
@@ -215,7 +215,7 @@ def main():
     p.add_argument("--early_stop", type=int, default=0,
                    help="early_stop_patience for all runs (0=off)")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--out_dir", default="results/week7_8")
+    p.add_argument("--out_dir", default="results/exp1_baseline_hparams")
     p.add_argument("--only", default=None,
                    help="只跑指定 group 前缀（如 A / A,C / A3_alpha_0.5）")
     p.add_argument("--dry_run", action="store_true")

@@ -173,8 +173,8 @@ user_relation_graph = alpha * item_graph + (1.0 - alpha) * mlp_graph
 | `data.py` | `SampleGenerator(ratings, history_len)` 参数化历史长度 | ① |
 | `train.py` | 新增 `--graph_fusion / --history_len / --seed / --early_stop_patience / --metrics_json / --result_tag` | — |
 | `centralized_train.py` | **新增**中心化 NCF 基线脚本（用同一份 MLP + 注意力结构，不做联邦/图/DP）| 上界参考 |
-| `experiments/run_thesis.py` | **新增**毕设实验主矩阵 17 组 | — |
-| `experiments/run_thesis_soft.py` | **新增**软交集 β sweep 4 组 | ② |
+| `experiments/run_exp2_dual_graph.py` | **新增**毕设实验主矩阵 17 组 | — |
+| `experiments/run_exp2_dual_graph_soft.py` | **新增**软交集 β sweep 4 组 | ② |
 | `tests/test_trusted_neighbors.py` | **新增** 5 个单测覆盖交集/并集/孤立节点回退/ε 换算 | ②③ |
 | 清理 | 删除 `plot_result.py / visualize_results.py / run_all_experiments.sh / fedgraph_thesis_dashboard.html / log_only_behavior.txt / data/tets.py / sh_result/` 等与毕设无关的旧文件 | — |
 
@@ -353,10 +353,10 @@ pip install -r requirements.txt
 python -m unittest discover -s tests
 
 # 主矩阵（17 实验，~100 分钟 CPU）
-python experiments/run_thesis.py --dataset 100k --num_round 25 --early_stop 5
+python experiments/run_exp2_dual_graph.py --dataset 100k --num_round 25 --early_stop 5
 
 # 软交集 β sweep（4 实验，~25 分钟 CPU）
-python experiments/run_thesis_soft.py --dataset 100k --num_round 25 --early_stop 5
+python experiments/run_exp2_dual_graph_soft.py --dataset 100k --num_round 25 --early_stop 5
 
 # 单次运行（毕设推荐配置示例）
 python train.py --dataset 100k --num_round 25 \
@@ -370,9 +370,9 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 ```
 
 输出：
-- `results/thesis/*.json` — 每实验完整曲线 + 统计
-- `results/thesis/summary.csv / summary.md` — 汇总
-- `results/thesis/curves.png` — 分组学习曲线
+- `results/exp2_dual_graph/*.json` — 每实验完整曲线 + 统计
+- `results/exp2_dual_graph/summary.csv / summary.md` — 汇总
+- `results/exp2_dual_graph/curves.png` — 分组学习曲线
 
 ---
 

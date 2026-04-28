@@ -1,4 +1,4 @@
-# V3 更新速览（附加在 THESIS_REPORT.md 顶部）
+# V3 更新速览（附加在 EXP2_REPORT.md 顶部）
 
 > **目标**：针对 V2 报告中列出的 4 个弱项逐一修补，使毕设无懈可击。
 
@@ -37,8 +37,8 @@
 | `utils.py` | 新增 `dp_composition_bounds()`：同时返回 basic / advanced / RDP 三种组合上界 |
 | `engine.py` + `train.py` | 新增 `--interest_type {user_emb, fc_layer, both}` 支持更丰富兴趣编码 |
 | `train.py` | metrics JSON 增加 `dp_composition` 字段（含所有三种 ε 上界 + "最紧"值 + 方法名） |
-| `experiments/run_ml1m_key.py` | ml-1m 关键对照运行器 |
-| `experiments/run_attention_v3.py` | 多头注意力对照运行器 |
-| `experiments/run_interest_v3.py` | 兴趣编码对照运行器 |
+| `experiments/run_exp6_ml1m.py` | ml-1m 关键对照运行器 |
+| `experiments/run_exp4_attention.py` | 多头注意力对照运行器 |
+| `experiments/run_exp5_interest.py` | 兴趣编码对照运行器 |
 | `tests/test_v3_enhancements.py` | MHA + DP 组合共 7 个新单测 |
 | `tests/*` | 总计 28 个测试全部通过 |

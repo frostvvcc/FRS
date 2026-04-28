@@ -50,7 +50,7 @@ def matrix():
         ("N2_neg_20",  "V3 + num_negative=20", V3_BASE + ["--num_negative", "20"]),
 
         # === C: 组合最佳（待 Q/R/L 出结果后再补）===
-        # 见 run_v4_combo.py 第二阶段
+        # 见 run_exp7_tuning_combo.py 第二阶段
     ]
 
 
@@ -88,7 +88,7 @@ def main():
     p.add_argument("--num_round", type=int, default=30)
     p.add_argument("--early_stop", type=int, default=6)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--out_dir", default="results/v4")
+    p.add_argument("--out_dir", default="results/exp7_tuning")
     p.add_argument("--only", default=None)
     p.add_argument("--dry_run", action="store_true")
     args = p.parse_args()

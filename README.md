@@ -20,17 +20,17 @@
 ├── utils.py                         # 图构建、可信邻居选择、消息传递、ε 换算
 ├── metrics.py                       # HR@K / NDCG@K
 ├── experiments/
-│   ├── run_thesis.py                # 毕设主矩阵 17 组
-│   ├── run_thesis_soft.py           # 软交集 β sweep 4 组
-│   ├── run_week7_8.py               # 第 7-8 周报告的旧矩阵（保留作为对照）
+│   ├── run_exp2_dual_graph.py                # 实验二：双图融合矩阵 17 组
+│   ├── run_exp2_dual_graph_soft.py           # 软交集 β sweep 4 组
+│   ├── run_exp1_baseline_hparams.py               # 实验一：基础超参对照 (23 组)
 │   └── analyze.py                   # 按组排名 + 极差统计
 ├── tests/                           # 16 个单元测试
 ├── data/                            # MovieLens 100k / 1m
 ├── results/
-│   ├── thesis/                      # 毕设矩阵所有 JSON + CSV + 学习曲线
-│   └── week7_8/                     # 第 7-8 周旧矩阵
-├── THESIS_REPORT.md                 # 毕设实验报告（主交付物）
-├── WEEK7_8_REPORT.md                # 第 7-8 周分析（bug 修复 + 超参对比）
+│   ├── thesis/                      # 实验二：双图融合所有 JSON + CSV + 学习曲线
+│   └── exp1_baseline_hparams/       # 实验一：基础超参矩阵
+├── EXP2_REPORT.md                 # 毕设实验报告（主交付物）
+├── EXP1_REPORT.md                # 第 7-8 周分析（bug 修复 + 超参对比）
 ├── README.md / TEST.md / PROGRESS.md
 ```
 
@@ -105,7 +105,7 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 | `--dp` | 0.0 | Laplace 噪声 scale（ε_naive = 1/dp；严格 ε 在 metrics_json 中） |
 | `--optimizer` | `sgd` | 可选 `sgd` / `adam` / `adamw` |
 | `--lr_u` / `--lr_i` | - | 直接指定用户/物品 embedding 学习率 |
-| `--lr_eta` | 80 | 旧的学习率缩放公式（见 WEEK7_8_REPORT） |
+| `--lr_eta` | 80 | 旧的学习率缩放公式（见 EXP1_REPORT） |
 | `--reg` | 1.0 | item embedding 正则化系数 |
 | `--neighborhood_size` | 0 | Top-K（0=阈值方式） |
 | `--mp_layers` | 1 | 图消息传递层数 |
@@ -121,18 +121,18 @@ python centralized_train.py --dataset 100k --num_epoch 25 \
 
 ## 实验矩阵与报告
 
-**毕设主交付**：[THESIS_REPORT.md](THESIS_REPORT.md) — V2 突破性结果（cosine 语义修复 + 可信邻居登顶）。
+**毕设主交付**：[EXP2_REPORT.md](EXP2_REPORT.md) — V2 突破性结果（cosine 语义修复 + 可信邻居登顶）。
 
 ```bash
 # 🌟 V2 矩阵（16 组，≈100 min CPU）—— 毕设最终结果
-python experiments/run_thesis_v2.py --dataset 100k --num_round 25 --early_stop 5
+python experiments/run_exp3_cosine_fix.py --dataset 100k --num_round 25 --early_stop 5
 
 # V1 旧矩阵保留作为对照（17+4 组）
-python experiments/run_thesis.py --dataset 100k --num_round 25 --early_stop 5
-python experiments/run_thesis_soft.py --dataset 100k --num_round 25 --early_stop 5
+python experiments/run_exp2_dual_graph.py --dataset 100k --num_round 25 --early_stop 5
+python experiments/run_exp2_dual_graph_soft.py --dataset 100k --num_round 25 --early_stop 5
 
 # 第 7-8 周报告的旧矩阵（bug 修复 + 超参对比）
-python experiments/run_week7_8.py --dataset 100k --num_round 20 --early_stop 5
+python experiments/run_exp1_baseline_hparams.py --dataset 100k --num_round 20 --early_stop 5
 ```
 
 ## 毕设关键发现摘要（V2）
@@ -147,7 +147,7 @@ python experiments/run_week7_8.py --dataset 100k --num_round 20 --early_stop 5
 | 修复 + 并集 | 0.4592 | 67% |
 | 旧 bug + intersection | 0.4189 | 61% |
 
-详见 [THESIS_REPORT.md 第 0 节](THESIS_REPORT.md#0-v2-突破总结必读)。
+详见 [EXP2_REPORT.md 第 0 节](EXP2_REPORT.md#0-v2-突破总结必读)。
 
 ## V1 结果（保留作为对照）
 
@@ -160,7 +160,7 @@ python experiments/run_week7_8.py --dataset 100k --num_round 20 --early_stop 5
 | **严格交集**（毕设原始设计） | 0.3998 | 58% |
 | 严格交集 + DP (ε=200) | 0.4242 | 62% |
 
-核心结论见 [THESIS_REPORT.md 第 10 节](THESIS_REPORT.md#10-毕设最终论点)。
+核心结论见 [EXP2_REPORT.md 第 10 节](EXP2_REPORT.md#10-毕设最终论点)。
 
 ## 测试
 

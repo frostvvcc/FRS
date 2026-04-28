@@ -7,9 +7,9 @@
   加 Z：中心化上界（一次性）
 
 用法:
-    python experiments/run_thesis.py --dataset 100k --num_round 25 --out_dir results/thesis
-    python experiments/run_thesis.py --only T         # 只跑 T 组
-    python experiments/run_thesis.py --dry_run
+    python experiments/run_exp2_dual_graph.py --dataset 100k --num_round 25 --out_dir results/exp2_dual_graph
+    python experiments/run_exp2_dual_graph.py --only T         # 只跑 T 组
+    python experiments/run_exp2_dual_graph.py --dry_run
 """
 from __future__ import annotations
 
@@ -218,7 +218,7 @@ def main():
     p.add_argument("--num_round", type=int, default=25)
     p.add_argument("--early_stop", type=int, default=5)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--out_dir", default="results/thesis")
+    p.add_argument("--out_dir", default="results/exp2_dual_graph")
     p.add_argument("--only", default=None,
                    help="逗号分隔，如 'T' 或 'T,D' 或 'T5_intersection'")
     p.add_argument("--dry_run", action="store_true")
